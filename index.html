@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Kiosco - Ventas</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===================== PANTALLA LOGIN ===================== -->
+<section id="pantalla-login" class="pantalla activa">
+
+  <!-- Paso 1: elegir rol -->
+  <div class="login-box" id="login-paso-rol">
+    <img src="logo-kiosco.png" alt="Logo" class="logo-inicio">
+    <h1>🏪 Kiosco</h1>
+    <p>¿Cómo vas a ingresar?</p>
+    <button id="btn-rol-vendedor" class="btn btn-primario btn-grande">🛒 Vendedor</button>
+    <button id="btn-rol-admin" class="btn btn-grande">🔑 Administrador</button>
+  </div>
+
+  <!-- Paso 2a: clave + nombre (vendedor) -->
+  <div class="login-box oculto" id="login-paso-vendedor">
+    <h1>🏪 Kiosco</h1>
+    <p>Ingresá la clave de vendedor y tu nombre.</p>
+    <input type="password" id="input-clave-vendedor" placeholder="Clave" autocomplete="off">
+    <input type="text" id="input-nombre-vendedor" placeholder="Tu nombre" autocomplete="off">
+    <button id="btn-entrar-vendedor" class="btn btn-primario btn-grande">Entrar</button>
+    <button id="btn-volver-rol-1" class="btn">Volver</button>
+    <p id="login-error-vendedor" class="error oculto"></p>
+  </div>
+
+  <!-- Paso 2b: clave + nombre (administrador) -->
+  <div class="login-box oculto" id="login-paso-admin">
+    <h1>🏪 Kiosco</h1>
+    <p>Ingresá la clave de administrador y tu nombre.</p>
+    <input type="password" id="input-clave-admin" placeholder="Clave" autocomplete="off">
+    <input type="text" id="input-nombre-admin" placeholder="Tu nombre" autocomplete="off">
+    <button id="btn-entrar-admin" class="btn btn-primario btn-grande">Entrar</button>
+    <button id="btn-volver-rol-2" class="btn">Volver</button>
+    <p id="login-error-admin" class="error oculto"></p>
+  </div>
+
+</section>
+
+<!-- ===================== APP PRINCIPAL ===================== -->
+<div id="app" class="oculto">
+
+  <header class="topbar">
+    <div class="topbar-usuario">👤 <span id="usuario-actual"></span></div>
+    <div class="topbar-acciones">
+      <button id="btn-sincronizar" class="btn btn-chico oculto">🔄 Sincronizar <span id="badge-pendientes" class="badge oculto"></span></button>
+      <button id="btn-conectar-impresora" class="btn btn-chico">🖨️ Impresora</button>
+      <button id="btn-cambiar-usuario" class="btn btn-chico">Salir</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab" data-tab="venta" data-rol="vendedor">🛒 Vender</button>
+    <button class="tab" data-tab="transferencias" data-rol="vendedor">💳 Transferencias</button>
+    <button class="tab" data-tab="productos" data-rol="admin">📦 Productos</button>
+    <button class="tab" data-tab="resumen" data-rol="admin">📊 Resumen</button>
+  </nav>
+
+  <!-- ---------- TAB: VENTA ---------- -->
+  <section id="tab-venta" class="tab-contenido">
+    <div id="banner-transferencia" class="banner-transferencia oculto">
+      <span id="banner-transferencia-texto"></span>
+      <button id="btn-quitar-transferencia" class="btn btn-chico">Quitar</button>
+    </div>
+    <div class="venta-layout">
+      <div class="lista-productos" id="grid-productos-venta">
+        <!-- tarjetas de producto generadas por JS -->
+      </div>
+
+      <aside class="carrito">
+        <h2>Carrito</h2>
+        <div id="carrito-items" class="carrito-items">
+          <p class="vacio">No hay productos seleccionados</p>
+        </div>
+        <div class="carrito-total">
+          <span>Total</span>
+          <span id="carrito-total-monto">$0</span>
+        </div>
+        <button id="btn-registrar-venta" class="btn btn-primario btn-grande" disabled>Registrar venta</button>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ---------- TAB: TRANSFERENCIAS (vendedor) ---------- -->
+  <section id="tab-transferencias" class="tab-contenido">
+    <div class="buscador-transferencias">
+      <input type="text" id="input-buscar-transferencia" placeholder="Buscar por RUN o nombre completo">
+      <button id="btn-buscar-transferencia" class="btn btn-primario">Buscar</button>
+    </div>
+    <div id="resultados-transferencias" class="lista-transferencias">
+      <p class="vacio">Buscá por RUN o nombre para ver transferencias sin usar.</p>
+    </div>
+  </section>
+
+  <!-- ---------- TAB: PRODUCTOS (admin) ---------- -->
+  <section id="tab-productos" class="tab-contenido">
+    <button id="btn-nuevo-producto" class="btn btn-primario">+ Nuevo producto</button>
+    <div id="lista-productos-admin" class="lista-productos-admin">
+      <!-- filas generadas por JS -->
+    </div>
+  </section>
+
+  <!-- ---------- TAB: RESUMEN (admin) ---------- -->
+  <section id="tab-resumen" class="tab-contenido">
+    <button id="btn-actualizar-resumen" class="btn">🔄 Actualizar</button>
+    <div class="resumen-cards">
+      <div class="resumen-card">
+        <div class="resumen-card-valor" id="resumen-cantidad">-</div>
+        <div class="resumen-card-label">Transferencias sin usar</div>
+      </div>
+      <div class="resumen-card">
+        <div class="resumen-card-valor" id="resumen-monto">-</div>
+        <div class="resumen-card-label">Monto total sin usar</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ===================== MODAL PRODUCTO (alta/edición) ===================== -->
+<div id="modal-producto" class="modal oculto">
+  <div class="modal-contenido">
+    <h2 id="modal-producto-titulo">Nuevo producto</h2>
+    <input type="hidden" id="producto-id">
+    <label>Nombre</label>
+    <input type="text" id="producto-nombre" placeholder="Ej: Alfajor">
+    <label>Precio</label>
+    <input type="number" id="producto-precio" placeholder="Ej: 1500" min="0" step="1">
+    <label>Foto</label>
+    <input type="file" id="producto-foto" accept="image/*">
+    <img id="producto-foto-preview" class="oculto foto-preview">
+    <div class="modal-acciones">
+      <button id="btn-guardar-producto" class="btn btn-primario">Guardar</button>
+      <button id="btn-cancelar-producto" class="btn">Cancelar</button>
+      <button id="btn-eliminar-producto" class="btn btn-peligro oculto">Eliminar</button>
+    </div>
+    <p id="modal-producto-error" class="error oculto"></p>
+  </div>
+</div>
+
+<!-- ===================== MODAL VENTA REGISTRADA ===================== -->
+<div id="modal-venta-exito" class="modal oculto">
+  <div class="modal-contenido">
+    <h2>✅ Venta registrada</h2>
+    <p id="venta-exito-resumen"></p>
+    <div class="modal-acciones">
+      <button id="btn-imprimir-comprobante" class="btn btn-primario btn-grande">🖨️ Imprimir / compartir comprobante</button>
+      <button id="btn-cerrar-venta-exito" class="btn">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== OVERLAY DE CARGA ===================== -->
+<div id="overlay-carga" class="overlay oculto">
+  <div class="spinner"></div>
+  <p id="overlay-carga-texto">Cargando...</p>
+</div>
+
+<!-- ===================== TOAST ===================== -->
+<div id="toast" class="toast oculto"></div>
+
+<script src="js/config.js"></script>
+<script src="js/db.js"></script>
+<script src="js/printer.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
