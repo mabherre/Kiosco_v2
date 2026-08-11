@@ -294,6 +294,7 @@
   }
 
   function finalizarVentaExitosa(venta, pendienteDeSincronizar) {
+    if (venta.transferenciaFila) quitarTransferenciaDelListado_(venta.transferenciaFila);
     estado.carrito = {};
     estado.transferenciaSeleccionada = null;
     estado.tipoVenta = 'efectivo';
@@ -587,6 +588,19 @@
     DB.obtenerTransferenciasSinUsar().catch(function () {});
   }
 
+  // Saca del listado ya mostrado (sin esperar a un refresco) la transferencia
+  // que se acaba de usar en una venta, para que no siga apareciendo como
+  // disponible hasta que alguien busque de nuevo.
+  function quitarTransferenciaDelListado_(fila) {
+    if (!fila) return;
+    var cont = $('resultados-transferencias');
+    var el = cont.querySelector('.transferencia-item[data-fila="' + fila + '"]');
+    if (el) el.remove();
+    if (!cont.querySelector('.transferencia-item') && !cont.querySelector('.vacio')) {
+      cont.innerHTML += '<p class="vacio">No se encontraron transferencias sin usar con ese dato.</p>';
+    }
+  }
+
   function renderizarResultadosTransferencias(lista, actualizadoOffline) {
     var cont = $('resultados-transferencias');
     var avisoOffline = actualizadoOffline
@@ -601,6 +615,7 @@
     lista.forEach(function (t) {
       var div = document.createElement('div');
       div.className = 'transferencia-item';
+      div.dataset.fila = t.fila;
       var fechaTexto = t.fecha ? new Date(t.fecha).toLocaleDateString() : '';
       div.innerHTML =
         '<div class="info">' +
