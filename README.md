@@ -4,7 +4,7 @@ App web (funciona en el navegador Chrome de un celular o tablet Android) para:
 
 - Ingresar con dos perfiles: **Vendedor** (solo nombre) y **Administrador** (clave compartida + nombre, para saber quién hizo cada cambio).
 - **Administrador:** CRUD completo de productos con foto, y un resumen con la cantidad y el monto total de transferencias sin usar.
-- **Vendedor:** registrar ventas seleccionando productos y cantidades (con subtotales y total automáticos), y buscar transferencias recibidas por RUN o nombre para aplicarlas a una venta.
+- **Vendedor:** registrar ventas seleccionando productos y cantidades (con subtotales y total automáticos), marcando si la venta es en **efectivo** o por **transferencia**, y buscar transferencias recibidas por RUN o nombre para aplicarlas a una venta. También tiene una pestaña de **Auditoría** con el total vendido en el día (efectivo y transferencia) y el detalle por producto, ambos limitados a sus propias ventas del día.
 - Guardar todo en una Google Sheet compartida (productos, ventas y detalle de cada venta).
 - Imprimir un comprobante por una impresora térmica Bluetooth (ESC/POS, 58mm) al cerrar cada venta.
 
@@ -21,6 +21,12 @@ Dicho esto, como es una app 100% del lado del cliente (sin usuarios reales con c
 El vendedor busca transferencias en una hoja de cálculo externa (compartida por Mabel), sólo entre las filas cuya columna **Estado Pago** está vacía. Al elegir una, queda visible el monto del abono en la pantalla de venta; al registrar la venta, esa fila se marca automáticamente como **Usado** en la columna Estado Pago (no se borra ni se mueve, solo se marca). El administrador ve, en la pestaña Resumen, cuántas transferencias quedan sin usar y la suma de sus montos.
 
 Para que esto funcione, la cuenta de Google que despliega el Apps Script (la misma que uso para "Ejecutar como: Yo") necesita tener acceso de edición a esa hoja externa de transferencias.
+
+### Tipo de venta, IDs e Auditoría
+
+- **IDs:** Productos, Ventas y DetalleVentas usan números enteros correlativos (1, 2, 3...) en vez de códigos largos. Cada ID nuevo es el número más alto que ya existe en esa columna más 1, así que podés reordenar o completar filas a mano en la hoja sin que se rompa nada.
+- **Tipo de venta:** en la pestaña Vender hay dos botones, **💵 Efectivo** y **💳 Transferencia**. Por defecto queda en Efectivo; si el vendedor aplica una transferencia con el botón "Usar" (desde la pestaña Transferencias), cambia solo a Transferencia. Esto se guarda en la columna `Tipo_venta` de la hoja Ventas.
+- **Auditoría (vendedor):** muestra, solo para el vendedor que tiene la sesión abierta, cuánto vendió hoy en efectivo, cuánto por transferencia, y el detalle de cantidades por producto vendidas hoy. Se actualiza con el botón "🔄 Actualizar" o al abrir la pestaña.
 
 ### Funcionamiento con poca o ninguna señal
 
@@ -54,7 +60,7 @@ Construida sólo con herramientas gratuitas: HTML/CSS/JavaScript plano + Google 
 
 > Cada vez que modifiques `Codigo.gs`, tenés que volver a **Implementar → Administrar implementaciones → editar (lápiz) → Nueva versión → Implementar** para que los cambios se apliquen.
 
-Las pestañas `Productos`, `Ventas` y `DetalleVentas` se crean solas en la hoja la primera vez que la app los necesita.
+Las pestañas `Productos`, `Ventas` y `DetalleVentas` se crean solas en la hoja la primera vez que la app los necesita, ya con la columna `Tipo_venta` incluida en `Ventas`. Si ya tenías estas pestañas de antes, agregá manualmente la columna `Tipo_venta` en `Ventas` (el nombre del encabezado puede ir en cualquier posición: el backend lo busca por nombre, no por posición fija).
 
 ---
 

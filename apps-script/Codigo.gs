@@ -7,8 +7,11 @@
  *
  * Crea automáticamente (si no existen) 3 pestañas en la hoja:
  *  - Productos      : ID | Nombre | Precio | FotoURL | Activo
- *  - Ventas         : ID | Fecha | Usuario | Total
- *  - DetalleVentas  : ID | VentaID | ProductoID | ProductoNombre | Cantidad | PrecioUnitario | Subtotal
+ *  - Ventas         : ID | Fecha | Usuario | Total | Tipo_venta
+ *  - DetalleVentas  : ID | VentaID | ProductoID | Cantidad | PrecioUnitario
+ *
+ * Los ID de las tres hojas son números enteros correlativos (no UUID):
+ * cada uno sigue desde el máximo que ya exista en su hoja.
  *
  * Expone un Web App (doGet / doPost) que el frontend consume por fetch().
  */
@@ -24,7 +27,7 @@ var CLAVE_VENDEDOR = 'ventas2026';
 // Acciones que sólo puede hacer un Administrador (requieren CLAVE_ADMIN).
 var ACCIONES_SOLO_ADMIN = ['agregarProducto', 'actualizarProducto', 'eliminarProducto'];
 // Acciones que sólo puede hacer un Vendedor (requieren CLAVE_VENDEDOR).
-var ACCIONES_SOLO_VENDEDOR = ['registrarVenta', 'buscarTransferencias', 'obtenerTransferenciasSinUsar'];
+var ACCIONES_SOLO_VENDEDOR = ['registrarVenta', 'buscarTransferencias', 'obtenerTransferenciasSinUsar', 'auditoriaDelDia'];
 
 // Hoja externa donde se registran las transferencias recibidas (abonos de
 // clientes). No es la misma hoja que la del kiosco: se abre por ID.
@@ -102,6 +105,9 @@ function doPost(e) {
       case 'resumenTransferencias':
         resultado = resumenTransferencias();
         break;
+      case 'auditoriaDelDia':
+        resultado = auditoriaDelDia(data);
+        break;
       default:
         return respond({ ok: false, error: 'Acción POST no reconocida: ' + accion });
     }
@@ -134,13 +140,39 @@ function getProductosSheet_() {
   return getSheet_('Productos', ['ID', 'Nombre', 'Precio', 'FotoURL', 'Activo']);
 }
 function getVentasSheet_() {
-  return getSheet_('Ventas', ['ID', 'Fecha', 'Usuario', 'Total']);
+  return getSheet_('Ventas', ['ID', 'Fecha', 'Usuario', 'Total', 'Tipo_venta']);
 }
 function getDetalleSheet_() {
   // El nombre del producto y el subtotal no se guardan: se pueden obtener
   // buscando el ProductoID en la hoja Productos y multiplicando
   // Cantidad x PrecioUnitario.
   return getSheet_('DetalleVentas', ['ID', 'VentaID', 'ProductoID', 'Cantidad', 'PrecioUnitario']);
+}
+
+// Da el próximo ID entero correlativo de una hoja, mirando el máximo que
+// ya existe en su primera columna (evita choques si se editaron IDs a mano).
+function siguienteId_(sheet) {
+  var valores = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 0), 1).getValues();
+  var maximo = 0;
+  valores.forEach(function (fila) {
+    var n = Number(fila[0]);
+    if (!isNaN(n) && n > maximo) maximo = n;
+  });
+  return maximo + 1;
+}
+
+// Devuelve el índice (1-based) de una columna buscando su nombre en la
+// fila de encabezados. Así, si alguien reordena o agrega columnas a mano
+// en la hoja (como Tipo_venta), el código igual escribe en el lugar
+// correcto en vez de asumir una posición fija.
+function indiceColumna_(sheet, nombreEncabezado) {
+  var encabezados = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  for (var i = 0; i < encabezados.length; i++) {
+    if (String(encabezados[i]).trim().toLowerCase() === nombreEncabezado.trim().toLowerCase()) {
+      return i + 1;
+    }
+  }
+  return -1;
 }
 
 /* ---------------- Productos ---------------- */
@@ -165,7 +197,7 @@ function getProductos() {
 
 function agregarProducto(data) {
   var sheet = getProductosSheet_();
-  var id = Utilities.getUuid();
+  var id = siguienteId_(sheet);
   var fotoUrl = '';
   if (data.fotoBase64) {
     fotoUrl = guardarImagenEnDrive_(data.fotoBase64, 'producto_' + id);
@@ -229,18 +261,34 @@ function getOrCreateFolder_(nombre) {
 function registrarVenta(data) {
   var ventasSheet = getVentasSheet_();
   var detalleSheet = getDetalleSheet_();
-  var ventaId = Utilities.getUuid();
+  var ventaId = siguienteId_(ventasSheet);
   var fecha = new Date();
+  var tipoVenta = (data.tipoVenta === 'transferencia') ? 'transferencia' : 'efectivo';
 
-  ventasSheet.appendRow([ventaId, fecha, data.usuario || '', Number(data.total) || 0]);
+  // Se arma la fila según los encabezados reales de la hoja (por si el
+  // orden de columnas cambió a mano, como al agregar Tipo_venta).
+  var numColsVentas = ventasSheet.getLastColumn();
+  var filaVenta = new Array(numColsVentas).fill('');
+  var idxId = indiceColumna_(ventasSheet, 'ID');
+  var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
+  var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
+  var idxTotal = indiceColumna_(ventasSheet, 'Total');
+  var idxTipoVenta = indiceColumna_(ventasSheet, 'Tipo_venta');
+  if (idxId > 0) filaVenta[idxId - 1] = ventaId;
+  if (idxFecha > 0) filaVenta[idxFecha - 1] = fecha;
+  if (idxUsuario > 0) filaVenta[idxUsuario - 1] = data.usuario || '';
+  if (idxTotal > 0) filaVenta[idxTotal - 1] = Number(data.total) || 0;
+  if (idxTipoVenta > 0) filaVenta[idxTipoVenta - 1] = tipoVenta;
+  ventasSheet.appendRow(filaVenta);
 
   // Se escriben todas las filas del detalle en una sola llamada (en vez de
   // una llamada por producto) para que registrar la venta sea más rápido.
   var items = data.items || [];
   if (items.length > 0) {
-    var filas = items.map(function (it) {
+    var siguienteIdDetalle = siguienteId_(detalleSheet);
+    var filas = items.map(function (it, i) {
       return [
-        Utilities.getUuid(),
+        siguienteIdDetalle + i,
         ventaId,
         it.productoId,
         Number(it.cantidad) || 0,
@@ -264,6 +312,84 @@ function registrarVenta(data) {
     fecha: fecha.toISOString(),
     transferenciaYaEstabaUsada: transferenciaYaEstabaUsada
   };
+}
+
+// Auditoría del día: totales en efectivo/transferencia y detalle por
+// producto, sólo de las ventas hechas por el vendedor indicado, sólo del
+// día de hoy.
+function auditoriaDelDia(data) {
+  var usuario = String(data.usuario || '');
+  var ventasSheet = getVentasSheet_();
+  var detalleSheet = getDetalleSheet_();
+
+  var idxId = indiceColumna_(ventasSheet, 'ID');
+  var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
+  var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
+  var idxTotal = indiceColumna_(ventasSheet, 'Total');
+  var idxTipoVenta = indiceColumna_(ventasSheet, 'Tipo_venta');
+
+  var hoy = new Date();
+
+  var valoresVentas = ventasSheet.getDataRange().getValues();
+  var idsVentasDeHoy = {};
+  var totalEfectivo = 0;
+  var totalTransferencia = 0;
+
+  for (var i = 1; i < valoresVentas.length; i++) {
+    var fila = valoresVentas[i];
+    var fechaFila = idxFecha > 0 ? fila[idxFecha - 1] : null;
+    var usuarioFila = idxUsuario > 0 ? String(fila[idxUsuario - 1] || '') : '';
+    if (!(fechaFila instanceof Date) || !esMismoDia_(fechaFila, hoy)) continue;
+    if (usuarioFila !== usuario) continue;
+
+    var total = idxTotal > 0 ? (Number(fila[idxTotal - 1]) || 0) : 0;
+    var tipo = idxTipoVenta > 0 ? String(fila[idxTipoVenta - 1] || '').toLowerCase() : 'efectivo';
+    if (tipo === 'transferencia') totalTransferencia += total;
+    else totalEfectivo += total;
+
+    var idVenta = idxId > 0 ? String(fila[idxId - 1]) : '';
+    if (idVenta) idsVentasDeHoy[idVenta] = true;
+  }
+
+  // Detalle por producto, sólo de esas ventas.
+  var valoresDetalle = detalleSheet.getDataRange().getValues();
+  var cantidadPorProducto = {}; // { productoId: cantidad }
+  for (var j = 1; j < valoresDetalle.length; j++) {
+    var filaDetalle = valoresDetalle[j];
+    var ventaIdDetalle = String(filaDetalle[1]);
+    if (!idsVentasDeHoy[ventaIdDetalle]) continue;
+    var productoId = String(filaDetalle[2]);
+    var cantidad = Number(filaDetalle[3]) || 0;
+    cantidadPorProducto[productoId] = (cantidadPorProducto[productoId] || 0) + cantidad;
+  }
+
+  // Traducir ProductoID a nombre.
+  var productosSheet = getProductosSheet_();
+  var valoresProductos = productosSheet.getDataRange().getValues();
+  var nombrePorId = {};
+  for (var k = 1; k < valoresProductos.length; k++) {
+    nombrePorId[String(valoresProductos[k][0])] = valoresProductos[k][1];
+  }
+
+  var detalleProductos = Object.keys(cantidadPorProducto).map(function (id) {
+    return {
+      productoId: id,
+      nombre: nombrePorId[id] || ('Producto ' + id),
+      cantidad: cantidadPorProducto[id]
+    };
+  }).sort(function (a, b) { return b.cantidad - a.cantidad; });
+
+  return {
+    totalEfectivo: totalEfectivo,
+    totalTransferencia: totalTransferencia,
+    productos: detalleProductos
+  };
+}
+
+function esMismoDia_(a, b) {
+  return a.getFullYear() === b.getFullYear() &&
+         a.getMonth() === b.getMonth() &&
+         a.getDate() === b.getDate();
 }
 
 /* ---------------- Transferencias ---------------- */

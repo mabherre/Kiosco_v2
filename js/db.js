@@ -175,6 +175,10 @@ var DB = (function () {
       return llamarBackend('resumenTransferencias');
     },
 
+    auditoriaDelDia: function (usuario) {
+      return llamarBackend('auditoriaDelDia', { usuario: usuario, claveVendedor: CONFIG.CLAVE_VENDEDOR });
+    },
+
     obtenerTransferenciasSinUsar: function () {
       return llamarBackend('obtenerTransferenciasSinUsar', { claveVendedor: CONFIG.CLAVE_VENDEDOR })
         .then(function (json) {

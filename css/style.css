@@ -162,6 +162,17 @@ body {
   border-radius: 8px;
   background: #eee;
 }
+.selector-tipo-venta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.selector-tipo-venta-label { font-size: 14px; font-weight: 600; color: #555; }
+.btn-tipo-venta { background: #fff; }
+.btn-tipo-venta.activo { background: var(--verde); color: #fff; border-color: var(--verde); }
+
 .tarjeta-producto .sin-foto {
   width: 100%;
   height: 90px;
@@ -300,6 +311,22 @@ body {
 }
 .resumen-card-valor { font-size: 28px; font-weight: 700; color: var(--verde-oscuro); }
 .resumen-card-label { font-size: 13px; color: #666; margin-top: 4px; }
+
+/* ---------- Auditoría ---------- */
+.lista-auditoria-productos { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.lista-auditoria-productos .vacio { color: #999; font-size: 14px; }
+.fila-auditoria-producto {
+  background: #fff;
+  border: 1px solid var(--gris-borde);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+.fila-auditoria-producto .nombre { font-weight: 600; }
+.fila-auditoria-producto .cantidad { color: var(--verde); font-weight: 700; }
 
 /* ---------- Modal ---------- */
 .modal {

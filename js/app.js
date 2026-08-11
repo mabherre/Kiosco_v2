@@ -8,7 +8,8 @@
     usuario: null,
     productos: [],
     carrito: {}, // { productoId: { producto, cantidad } }
-    transferenciaSeleccionada: null // { fila, fecha, run, nombreCompleto, abono }
+    transferenciaSeleccionada: null, // { fila, fecha, run, nombreCompleto, abono }
+    tipoVenta: 'efectivo' // 'efectivo' | 'transferencia'
   };
 
   /* ---------- Utilidades UI ---------- */
@@ -157,6 +158,7 @@
     if (contenido) contenido.classList.add('activa');
     if (nombreTab === 'resumen') cargarResumenTransferencias();
     if (nombreTab === 'transferencias') refrescarCacheTransferencias();
+    if (nombreTab === 'auditoria') cargarAuditoria();
   }
 
   document.querySelectorAll('.tab').forEach(function (btn) {
@@ -260,7 +262,13 @@
     });
     if (!items.length) return;
     var total = items.reduce(function (acc, it) { return acc + it.subtotal; }, 0);
-    var venta = { usuario: estado.usuario, items: items, total: total, fecha: new Date().toISOString() };
+    var venta = {
+      usuario: estado.usuario,
+      items: items,
+      total: total,
+      fecha: new Date().toISOString(),
+      tipoVenta: estado.tipoVenta
+    };
     if (estado.transferenciaSeleccionada) {
       venta.transferenciaFila = estado.transferenciaSeleccionada.fila;
     }
@@ -288,9 +296,11 @@
   function finalizarVentaExitosa(venta, pendienteDeSincronizar) {
     estado.carrito = {};
     estado.transferenciaSeleccionada = null;
+    estado.tipoVenta = 'efectivo';
     renderizarProductosVenta();
     renderizarCarrito();
     renderizarBannerTransferencia();
+    renderizarSelectorTipoVenta();
     mostrarVentaExito(venta, pendienteDeSincronizar);
   }
 
@@ -515,6 +525,20 @@
       .then(ocultarCarga);
   });
 
+  /* ---------- Selector de tipo de venta (efectivo / transferencia) ---------- */
+  function renderizarSelectorTipoVenta() {
+    $('btn-tipo-efectivo').classList.toggle('activo', estado.tipoVenta === 'efectivo');
+    $('btn-tipo-transferencia').classList.toggle('activo', estado.tipoVenta === 'transferencia');
+  }
+
+  function elegirTipoVenta(tipo) {
+    estado.tipoVenta = tipo;
+    renderizarSelectorTipoVenta();
+  }
+
+  $('btn-tipo-efectivo').addEventListener('click', function () { elegirTipoVenta('efectivo'); });
+  $('btn-tipo-transferencia').addEventListener('click', function () { elegirTipoVenta('transferencia'); });
+
   /* ---------- Transferencias (vendedor) ---------- */
   function renderizarBannerTransferencia() {
     var banner = $('banner-transferencia');
@@ -587,7 +611,9 @@
         '<button class="btn btn-primario btn-usar-transferencia">Usar</button>';
       div.querySelector('.btn-usar-transferencia').addEventListener('click', function () {
         estado.transferenciaSeleccionada = t;
+        estado.tipoVenta = 'transferencia';
         renderizarBannerTransferencia();
+        renderizarSelectorTipoVenta();
         activarTab('venta');
       });
       cont.appendChild(div);
@@ -607,6 +633,32 @@
   }
 
   $('btn-actualizar-resumen').addEventListener('click', cargarResumenTransferencias);
+
+  /* ---------- Auditoría del día (vendedor) ---------- */
+  function cargarAuditoria() {
+    mostrarCarga('Cargando auditoría...');
+    DB.auditoriaDelDia(estado.usuario)
+      .then(function (resp) {
+        $('auditoria-efectivo').textContent = formatoMoneda(resp.totalEfectivo || 0);
+        $('auditoria-transferencia').textContent = formatoMoneda(resp.totalTransferencia || 0);
+        var cont = $('auditoria-productos');
+        var productos = resp.productos || [];
+        if (!productos.length) {
+          cont.innerHTML = '<p class="vacio">Todavía no hay ventas tuyas hoy.</p>';
+          return;
+        }
+        cont.innerHTML = productos.map(function (p) {
+          return '<div class="fila-auditoria-producto">' +
+            '<span class="nombre">' + escapeHtml(p.nombre) + '</span>' +
+            '<span class="cantidad">x' + p.cantidad + '</span>' +
+            '</div>';
+        }).join('');
+      })
+      .catch(function (err) { toast('Error al cargar la auditoría: ' + err.message, true); })
+      .then(ocultarCarga);
+  }
+
+  $('btn-actualizar-auditoria').addEventListener('click', cargarAuditoria);
 
   /* ---------- Helpers ---------- */
   function escapeHtml(s) {

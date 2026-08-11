@@ -61,6 +61,7 @@
   <nav class="tabs">
     <button class="tab" data-tab="venta" data-rol="vendedor">🛒 Vender</button>
     <button class="tab" data-tab="transferencias" data-rol="vendedor">💳 Transferencias</button>
+    <button class="tab" data-tab="auditoria" data-rol="vendedor">📋 Auditoría</button>
     <button class="tab" data-tab="productos" data-rol="admin">📦 Productos</button>
     <button class="tab" data-tab="resumen" data-rol="admin">📊 Resumen</button>
   </nav>
@@ -70,6 +71,11 @@
     <div id="banner-transferencia" class="banner-transferencia oculto">
       <span id="banner-transferencia-texto"></span>
       <button id="btn-quitar-transferencia" class="btn btn-chico">Quitar</button>
+    </div>
+    <div class="selector-tipo-venta">
+      <span class="selector-tipo-venta-label">Tipo de venta:</span>
+      <button id="btn-tipo-efectivo" class="btn btn-tipo-venta activo" data-tipo="efectivo">💵 Efectivo</button>
+      <button id="btn-tipo-transferencia" class="btn btn-tipo-venta" data-tipo="transferencia">💳 Transferencia</button>
     </div>
     <div class="venta-layout">
       <div class="lista-productos" id="grid-productos-venta">
@@ -87,6 +93,25 @@
         </div>
         <button id="btn-registrar-venta" class="btn btn-primario btn-grande" disabled>Registrar venta</button>
       </aside>
+    </div>
+  </section>
+
+  <!-- ---------- TAB: AUDITORÍA (vendedor) ---------- -->
+  <section id="tab-auditoria" class="tab-contenido">
+    <button id="btn-actualizar-auditoria" class="btn">🔄 Actualizar</button>
+    <div class="resumen-cards">
+      <div class="resumen-card">
+        <div class="resumen-card-valor" id="auditoria-efectivo">-</div>
+        <div class="resumen-card-label">Vendido hoy en efectivo</div>
+      </div>
+      <div class="resumen-card">
+        <div class="resumen-card-valor" id="auditoria-transferencia">-</div>
+        <div class="resumen-card-label">Vendido hoy por transferencia</div>
+      </div>
+    </div>
+    <h3>Detalle por producto (hoy)</h3>
+    <div id="auditoria-productos" class="lista-auditoria-productos">
+      <p class="vacio">Todavía no hay ventas tuyas hoy.</p>
     </div>
   </section>
 
