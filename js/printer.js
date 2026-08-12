@@ -16,6 +16,7 @@ var Impresora = (function () {
 
   var dispositivo = null;
   var characteristic = null;
+  var callbackCambioEstado = null;
 
   function soportado() {
     return !!navigator.bluetooth;
@@ -35,6 +36,12 @@ var Impresora = (function () {
     })
       .then(function (device) {
         dispositivo = device;
+        // Si la impresora se apaga o se aleja durante el día, avisamos para
+        // que el indicador de "no conectada" se actualice solo.
+        device.addEventListener('gattserverdisconnected', function () {
+          characteristic = null;
+          if (callbackCambioEstado) callbackCambioEstado();
+        });
         return device.gatt.connect();
       })
       .then(function (server) {
@@ -45,12 +52,19 @@ var Impresora = (function () {
       })
       .then(function (char) {
         characteristic = char;
+        if (callbackCambioEstado) callbackCambioEstado();
         return true;
       });
   }
 
   function estaConectada() {
     return !!(characteristic && dispositivo && dispositivo.gatt.connected);
+  }
+
+  // Permite que app.js se entere apenas cambia el estado de conexión
+  // (conectada o desconectada), para actualizar el indicador visual.
+  function alCambiarEstado(cb) {
+    callbackCambioEstado = cb;
   }
 
   // --- Construcción de comandos ESC/POS ---
@@ -223,6 +237,7 @@ var Impresora = (function () {
     soportado: soportado,
     conectar: conectar,
     estaConectada: estaConectada,
+    alCambiarEstado: alCambiarEstado,
     imprimirVenta: imprimirVenta,
     puedeCompartirImagenes: puedeCompartirImagenes,
     compartirTicket: compartirTicket

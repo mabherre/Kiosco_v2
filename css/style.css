@@ -328,6 +328,47 @@ body {
 .fila-auditoria-producto .nombre { font-weight: 600; }
 .fila-auditoria-producto .cantidad { color: var(--verde); font-weight: 700; }
 
+/* ---------- Ventas del día (vendedor) ---------- */
+.lista-ventas-dia { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.lista-ventas-dia .vacio { color: #999; font-size: 14px; }
+.venta-dia-item {
+  background: #fff;
+  border: 1px solid var(--gris-borde);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.venta-dia-item .cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.venta-dia-item .hora { font-weight: 700; }
+.venta-dia-item .vendedor { color: #666; font-size: 13px; }
+.venta-dia-item .tipo {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #eaf5ef;
+  color: var(--verde-oscuro);
+}
+.venta-dia-item .tipo.transferencia { background: #e8f0fb; color: #1e3a5f; }
+.venta-dia-item .total { font-weight: 700; font-size: 16px; color: var(--verde-oscuro); }
+.venta-dia-item .productos {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--gris-borde);
+  font-size: 13px;
+  color: #444;
+}
+.venta-dia-item .producto-linea {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
 /* ---------- Modal ---------- */
 .modal {
   position: fixed; inset: 0; background: rgba(0,0,0,0.5);

@@ -65,6 +65,7 @@
     mostrarTabsSegunRol();
     cargarProductos();
     actualizarBadgePendientes();
+    actualizarBadgeImpresora();
     intentarSincronizar(true);
     if (rol === 'vendedor') refrescarCacheTransferencias();
   }
@@ -159,6 +160,7 @@
     if (nombreTab === 'resumen') cargarResumenTransferencias();
     if (nombreTab === 'transferencias') refrescarCacheTransferencias();
     if (nombreTab === 'auditoria') cargarAuditoria();
+    if (nombreTab === 'ventas-dia') cargarVentasDelDia();
   }
 
   document.querySelectorAll('.tab').forEach(function (btn) {
@@ -397,7 +399,20 @@
   window.addEventListener('online', function () { intentarSincronizar(true); });
   setInterval(function () { intentarSincronizar(true); }, 45000);
 
-  /* ---------- Impresora: conectar ---------- */
+  /* ---------- Impresora: conectar + indicador de "no conectada" ---------- */
+  function actualizarBadgeImpresora() {
+    var badge = $('badge-impresora');
+    if (Impresora.soportado() && Impresora.estaConectada()) {
+      badge.classList.add('oculto');
+    } else {
+      badge.classList.remove('oculto');
+    }
+  }
+
+  // Se entera al toque si la impresora se desconecta sola (se apaga, se
+  // aleja, se queda sin batería) para que el indicador quede al día.
+  Impresora.alCambiarEstado(actualizarBadgeImpresora);
+
   $('btn-conectar-impresora').addEventListener('click', function () {
     if (!Impresora.soportado()) {
       toast('Este navegador no soporta Bluetooth. Usá Chrome en Android.', true);
@@ -407,7 +422,7 @@
     Impresora.conectar()
       .then(function () { toast('Impresora conectada.'); })
       .catch(function (err) { toast('No se pudo conectar la impresora: ' + err.message, true); })
-      .then(ocultarCarga);
+      .then(function () { ocultarCarga(); actualizarBadgeImpresora(); });
   });
 
   /* ---------- Vista Productos (admin) ---------- */
@@ -674,6 +689,43 @@
   }
 
   $('btn-actualizar-auditoria').addEventListener('click', cargarAuditoria);
+
+  /* ---------- Ventas del día (vendedor) ---------- */
+  function cargarVentasDelDia() {
+    mostrarCarga('Cargando ventas del día...');
+    DB.ventasDelDia()
+      .then(function (resp) {
+        var cont = $('lista-ventas-dia');
+        var ventas = resp.ventas || [];
+        if (!ventas.length) {
+          cont.innerHTML = '<p class="vacio">Todavía no hay ventas hoy.</p>';
+          return;
+        }
+        cont.innerHTML = ventas.map(function (v) {
+          var hora = new Date(v.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          var tipoTexto = v.tipoVenta === 'transferencia' ? '💳 Transferencia' : '💵 Efectivo';
+          var productosHtml = (v.productos || []).map(function (p) {
+            return '<div class="producto-linea">' +
+              '<span>' + escapeHtml(p.nombre) + ' x' + p.cantidad + '</span>' +
+              '<span>' + formatoMoneda(p.subtotal) + '</span>' +
+              '</div>';
+          }).join('');
+          return '<div class="venta-dia-item">' +
+            '<div class="cabecera">' +
+            '<span class="hora">' + hora + '</span>' +
+            '<span class="vendedor">' + escapeHtml(v.usuario) + '</span>' +
+            '<span class="tipo ' + v.tipoVenta + '">' + tipoTexto + '</span>' +
+            '<span class="total">' + formatoMoneda(v.total) + '</span>' +
+            '</div>' +
+            '<div class="productos">' + (productosHtml || '<span>Sin detalle de productos.</span>') + '</div>' +
+            '</div>';
+        }).join('');
+      })
+      .catch(function (err) { toast('Error al cargar las ventas del día: ' + err.message, true); })
+      .then(ocultarCarga);
+  }
+
+  $('btn-actualizar-ventas-dia').addEventListener('click', cargarVentasDelDia);
 
   /* ---------- Helpers ---------- */
   function escapeHtml(s) {

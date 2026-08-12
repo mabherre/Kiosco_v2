@@ -179,6 +179,10 @@ var DB = (function () {
       return llamarBackend('auditoriaDelDia', { usuario: usuario, claveVendedor: CONFIG.CLAVE_VENDEDOR });
     },
 
+    ventasDelDia: function () {
+      return llamarBackend('ventasDelDia', { claveVendedor: CONFIG.CLAVE_VENDEDOR });
+    },
+
     obtenerTransferenciasSinUsar: function () {
       return llamarBackend('obtenerTransferenciasSinUsar', { claveVendedor: CONFIG.CLAVE_VENDEDOR })
         .then(function (json) {

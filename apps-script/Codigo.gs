@@ -27,7 +27,7 @@ var CLAVE_VENDEDOR = 'ventas2026';
 // Acciones que sólo puede hacer un Administrador (requieren CLAVE_ADMIN).
 var ACCIONES_SOLO_ADMIN = ['agregarProducto', 'actualizarProducto', 'eliminarProducto'];
 // Acciones que sólo puede hacer un Vendedor (requieren CLAVE_VENDEDOR).
-var ACCIONES_SOLO_VENDEDOR = ['registrarVenta', 'buscarTransferencias', 'obtenerTransferenciasSinUsar', 'auditoriaDelDia'];
+var ACCIONES_SOLO_VENDEDOR = ['registrarVenta', 'buscarTransferencias', 'obtenerTransferenciasSinUsar', 'auditoriaDelDia', 'ventasDelDia'];
 
 // Hoja externa donde se registran las transferencias recibidas (abonos de
 // clientes). No es la misma hoja que la del kiosco: se abre por ID.
@@ -108,6 +108,9 @@ function doPost(e) {
       case 'auditoriaDelDia':
         resultado = auditoriaDelDia(data);
         break;
+      case 'ventasDelDia':
+        resultado = ventasDelDia();
+        break;
       default:
         return respond({ ok: false, error: 'Acción POST no reconocida: ' + accion });
     }
@@ -152,7 +155,9 @@ function getDetalleSheet_() {
 // Da el próximo ID entero correlativo de una hoja, mirando el máximo que
 // ya existe en su primera columna (evita choques si se editaron IDs a mano).
 function siguienteId_(sheet) {
-  var valores = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 0), 1).getValues();
+  var filasDeDatos = sheet.getLastRow() - 1;
+  if (filasDeDatos < 1) return 1; // hoja vacía (sólo encabezado): empieza en 1
+  var valores = sheet.getRange(2, 1, filasDeDatos, 1).getValues();
   var maximo = 0;
   valores.forEach(function (fila) {
     var n = Number(fila[0]);
@@ -196,14 +201,20 @@ function getProductos() {
 }
 
 function agregarProducto(data) {
-  var sheet = getProductosSheet_();
-  var id = siguienteId_(sheet);
-  var fotoUrl = '';
-  if (data.fotoBase64) {
-    fotoUrl = guardarImagenEnDrive_(data.fotoBase64, 'producto_' + id);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sheet = getProductosSheet_();
+    var id = siguienteId_(sheet);
+    var fotoUrl = '';
+    if (data.fotoBase64) {
+      fotoUrl = guardarImagenEnDrive_(data.fotoBase64, 'producto_' + id);
+    }
+    sheet.appendRow([id, data.nombre, Number(data.precio) || 0, fotoUrl, true]);
+    return { id: id, fotoUrl: fotoUrl };
+  } finally {
+    lock.releaseLock();
   }
-  sheet.appendRow([id, data.nombre, Number(data.precio) || 0, fotoUrl, true]);
-  return { id: id, fotoUrl: fotoUrl };
 }
 
 function actualizarProducto(data) {
@@ -259,59 +270,70 @@ function getOrCreateFolder_(nombre) {
 /* ---------------- Ventas ---------------- */
 
 function registrarVenta(data) {
-  var ventasSheet = getVentasSheet_();
-  var detalleSheet = getDetalleSheet_();
-  var ventaId = siguienteId_(ventasSheet);
-  var fecha = new Date();
-  var tipoVenta = (data.tipoVenta === 'transferencia') ? 'transferencia' : 'efectivo';
+  // Si dos ventas llegan casi al mismo tiempo (dos vendedores, o una venta
+  // que se sincroniza justo cuando se está guardando otra), sin este
+  // bloqueo ambas podrían leer el mismo "último ID" antes de que la
+  // primera termine de escribir, y quedar con el mismo número. El
+  // bloqueo obliga a que se procesen de a una por vez.
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ventasSheet = getVentasSheet_();
+    var detalleSheet = getDetalleSheet_();
+    var ventaId = siguienteId_(ventasSheet);
+    var fecha = new Date();
+    var tipoVenta = (data.tipoVenta === 'transferencia') ? 'transferencia' : 'efectivo';
 
-  // Se arma la fila según los encabezados reales de la hoja (por si el
-  // orden de columnas cambió a mano, como al agregar Tipo_venta).
-  var numColsVentas = ventasSheet.getLastColumn();
-  var filaVenta = new Array(numColsVentas).fill('');
-  var idxId = indiceColumna_(ventasSheet, 'ID');
-  var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
-  var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
-  var idxTotal = indiceColumna_(ventasSheet, 'Total');
-  var idxTipoVenta = indiceColumna_(ventasSheet, 'Tipo_venta');
-  if (idxId > 0) filaVenta[idxId - 1] = ventaId;
-  if (idxFecha > 0) filaVenta[idxFecha - 1] = fecha;
-  if (idxUsuario > 0) filaVenta[idxUsuario - 1] = data.usuario || '';
-  if (idxTotal > 0) filaVenta[idxTotal - 1] = Number(data.total) || 0;
-  if (idxTipoVenta > 0) filaVenta[idxTipoVenta - 1] = tipoVenta;
-  ventasSheet.appendRow(filaVenta);
+    // Se arma la fila según los encabezados reales de la hoja (por si el
+    // orden de columnas cambió a mano, como al agregar Tipo_venta).
+    var numColsVentas = ventasSheet.getLastColumn();
+    var filaVenta = new Array(numColsVentas).fill('');
+    var idxId = indiceColumna_(ventasSheet, 'ID');
+    var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
+    var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
+    var idxTotal = indiceColumna_(ventasSheet, 'Total');
+    var idxTipoVenta = indiceColumna_(ventasSheet, 'Tipo_venta');
+    if (idxId > 0) filaVenta[idxId - 1] = ventaId;
+    if (idxFecha > 0) filaVenta[idxFecha - 1] = fecha;
+    if (idxUsuario > 0) filaVenta[idxUsuario - 1] = data.usuario || '';
+    if (idxTotal > 0) filaVenta[idxTotal - 1] = Number(data.total) || 0;
+    if (idxTipoVenta > 0) filaVenta[idxTipoVenta - 1] = tipoVenta;
+    ventasSheet.appendRow(filaVenta);
 
-  // Se escriben todas las filas del detalle en una sola llamada (en vez de
-  // una llamada por producto) para que registrar la venta sea más rápido.
-  var items = data.items || [];
-  if (items.length > 0) {
-    var siguienteIdDetalle = siguienteId_(detalleSheet);
-    var filas = items.map(function (it, i) {
-      return [
-        siguienteIdDetalle + i,
-        ventaId,
-        it.productoId,
-        Number(it.cantidad) || 0,
-        Number(it.precioUnitario) || 0
-      ];
-    });
-    var filaInicial = detalleSheet.getLastRow() + 1;
-    detalleSheet.getRange(filaInicial, 1, filas.length, filas[0].length).setValues(filas);
+    // Se escriben todas las filas del detalle en una sola llamada (en vez de
+    // una llamada por producto) para que registrar la venta sea más rápido.
+    var items = data.items || [];
+    if (items.length > 0) {
+      var siguienteIdDetalle = siguienteId_(detalleSheet);
+      var filas = items.map(function (it, i) {
+        return [
+          siguienteIdDetalle + i,
+          ventaId,
+          it.productoId,
+          Number(it.cantidad) || 0,
+          Number(it.precioUnitario) || 0
+        ];
+      });
+      var filaInicial = detalleSheet.getLastRow() + 1;
+      detalleSheet.getRange(filaInicial, 1, filas.length, filas[0].length).setValues(filas);
+    }
+
+    // Si la venta se hizo a partir de una transferencia seleccionada, se marca
+    // esa fila como usada en la hoja de transferencias.
+    var transferenciaYaEstabaUsada = false;
+    if (data.transferenciaFila) {
+      var resultadoMarca = marcarTransferenciaUsada({ fila: data.transferenciaFila });
+      transferenciaYaEstabaUsada = !!resultadoMarca.yaEstabaUsada;
+    }
+
+    return {
+      ventaId: ventaId,
+      fecha: fecha.toISOString(),
+      transferenciaYaEstabaUsada: transferenciaYaEstabaUsada
+    };
+  } finally {
+    lock.releaseLock();
   }
-
-  // Si la venta se hizo a partir de una transferencia seleccionada, se marca
-  // esa fila como usada en la hoja de transferencias.
-  var transferenciaYaEstabaUsada = false;
-  if (data.transferenciaFila) {
-    var resultadoMarca = marcarTransferenciaUsada({ fila: data.transferenciaFila });
-    transferenciaYaEstabaUsada = !!resultadoMarca.yaEstabaUsada;
-  }
-
-  return {
-    ventaId: ventaId,
-    fecha: fecha.toISOString(),
-    transferenciaYaEstabaUsada: transferenciaYaEstabaUsada
-  };
 }
 
 // Auditoría del día: totales en efectivo/transferencia y detalle por
@@ -384,6 +406,73 @@ function auditoriaDelDia(data) {
     totalTransferencia: totalTransferencia,
     productos: detalleProductos
   };
+}
+
+// Todas las ventas del día en curso (de cualquier vendedor), con su detalle
+// de productos, ordenadas de la más reciente a la más antigua.
+function ventasDelDia() {
+  var ventasSheet = getVentasSheet_();
+  var detalleSheet = getDetalleSheet_();
+  var productosSheet = getProductosSheet_();
+
+  var idxId = indiceColumna_(ventasSheet, 'ID');
+  var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
+  var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
+  var idxTotal = indiceColumna_(ventasSheet, 'Total');
+  var idxTipoVenta = indiceColumna_(ventasSheet, 'Tipo_venta');
+
+  var hoy = new Date();
+
+  // Nombre de cada producto, para mostrarlo en el detalle sin guardarlo
+  // duplicado en DetalleVentas.
+  var nombrePorId = {};
+  var valoresProductos = productosSheet.getDataRange().getValues();
+  for (var k = 1; k < valoresProductos.length; k++) {
+    nombrePorId[String(valoresProductos[k][0])] = valoresProductos[k][1];
+  }
+
+  // Se agrupa el detalle por VentaID una sola vez, en vez de recorrer toda
+  // la hoja DetalleVentas por cada venta del día.
+  var detallePorVenta = {};
+  var valoresDetalle = detalleSheet.getDataRange().getValues();
+  for (var j = 1; j < valoresDetalle.length; j++) {
+    var filaDetalle = valoresDetalle[j];
+    var ventaIdDetalle = String(filaDetalle[1]);
+    var productoId = String(filaDetalle[2]);
+    var cantidad = Number(filaDetalle[3]) || 0;
+    var precioUnitario = Number(filaDetalle[4]) || 0;
+    if (!detallePorVenta[ventaIdDetalle]) detallePorVenta[ventaIdDetalle] = [];
+    detallePorVenta[ventaIdDetalle].push({
+      nombre: nombrePorId[productoId] || ('Producto ' + productoId),
+      cantidad: cantidad,
+      precioUnitario: precioUnitario,
+      subtotal: cantidad * precioUnitario
+    });
+  }
+
+  var ventas = [];
+  var valoresVentas = ventasSheet.getDataRange().getValues();
+  for (var i = 1; i < valoresVentas.length; i++) {
+    var fila = valoresVentas[i];
+    var fechaFila = idxFecha > 0 ? fila[idxFecha - 1] : null;
+    if (!(fechaFila instanceof Date) || !esMismoDia_(fechaFila, hoy)) continue;
+
+    var idVenta = idxId > 0 ? String(fila[idxId - 1]) : '';
+    ventas.push({
+      ventaId: idVenta,
+      fecha: fechaFila.toISOString(),
+      usuario: idxUsuario > 0 ? String(fila[idxUsuario - 1] || '') : '',
+      total: idxTotal > 0 ? (Number(fila[idxTotal - 1]) || 0) : 0,
+      tipoVenta: idxTipoVenta > 0 ? String(fila[idxTipoVenta - 1] || 'efectivo').toLowerCase() : 'efectivo',
+      productos: detallePorVenta[idVenta] || []
+    });
+  }
+
+  // Más reciente primero. El ID es correlativo según el orden en que se
+  // registraron las ventas, así que ordenar por ID (número) alcanza.
+  ventas.sort(function (a, b) { return Number(b.ventaId) - Number(a.ventaId); });
+
+  return { ventas: ventas };
 }
 
 function esMismoDia_(a, b) {

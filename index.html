@@ -53,7 +53,7 @@
     <div class="topbar-usuario">👤 <span id="usuario-actual"></span></div>
     <div class="topbar-acciones">
       <button id="btn-sincronizar" class="btn btn-chico oculto">🔄 Sincronizar <span id="badge-pendientes" class="badge oculto"></span></button>
-      <button id="btn-conectar-impresora" class="btn btn-chico">🖨️ Impresora</button>
+      <button id="btn-conectar-impresora" class="btn btn-chico" title="Impresora Bluetooth">🖨️ Impresora <span id="badge-impresora" class="badge oculto" title="Impresora no conectada">⚠️</span></button>
       <button id="btn-cambiar-usuario" class="btn btn-chico">Salir</button>
     </div>
   </header>
@@ -62,6 +62,7 @@
     <button class="tab" data-tab="venta" data-rol="vendedor">🛒 Vender</button>
     <button class="tab" data-tab="transferencias" data-rol="vendedor">💳 Transferencias</button>
     <button class="tab" data-tab="auditoria" data-rol="vendedor">📋 Auditoría</button>
+    <button class="tab" data-tab="ventas-dia" data-rol="vendedor">🧾 Ventas del día</button>
     <button class="tab" data-tab="productos" data-rol="admin">📦 Productos</button>
     <button class="tab" data-tab="resumen" data-rol="admin">📊 Resumen</button>
   </nav>
@@ -112,6 +113,14 @@
     <h3>Detalle por producto (hoy)</h3>
     <div id="auditoria-productos" class="lista-auditoria-productos">
       <p class="vacio">Todavía no hay ventas tuyas hoy.</p>
+    </div>
+  </section>
+
+  <!-- ---------- TAB: VENTAS DEL DÍA (vendedor) ---------- -->
+  <section id="tab-ventas-dia" class="tab-contenido">
+    <button id="btn-actualizar-ventas-dia" class="btn">🔄 Actualizar</button>
+    <div id="lista-ventas-dia" class="lista-ventas-dia">
+      <p class="vacio">Todavía no hay ventas hoy.</p>
     </div>
   </section>
 

@@ -4,7 +4,7 @@ App web (funciona en el navegador Chrome de un celular o tablet Android) para:
 
 - Ingresar con dos perfiles: **Vendedor** (solo nombre) y **Administrador** (clave compartida + nombre, para saber quién hizo cada cambio).
 - **Administrador:** CRUD completo de productos con foto, y un resumen con la cantidad y el monto total de transferencias sin usar.
-- **Vendedor:** registrar ventas seleccionando productos y cantidades (con subtotales y total automáticos), marcando si la venta es en **efectivo** o por **transferencia**, y buscar transferencias recibidas por RUN o nombre para aplicarlas a una venta. También tiene una pestaña de **Auditoría** con el total vendido en el día (efectivo y transferencia) y el detalle por producto, ambos limitados a sus propias ventas del día.
+- **Vendedor:** registrar ventas seleccionando productos y cantidades (con subtotales y total automáticos), marcando si la venta es en **efectivo** o por **transferencia**, y buscar transferencias recibidas por RUN o nombre para aplicarlas a una venta. También tiene una pestaña de **Auditoría** con el total vendido en el día (efectivo y transferencia) y el detalle por producto, ambos limitados a sus propias ventas del día, y una pestaña de **Ventas del día** con todas las ventas del día en curso (de cualquier vendedor), de la más reciente a la más antigua, con el detalle de productos de cada una.
 - Guardar todo en una Google Sheet compartida (productos, ventas y detalle de cada venta).
 - Imprimir un comprobante por una impresora térmica Bluetooth (ESC/POS, 58mm) al cerrar cada venta.
 
@@ -27,6 +27,7 @@ Para que esto funcione, la cuenta de Google que despliega el Apps Script (la mis
 - **IDs:** Productos, Ventas y DetalleVentas usan números enteros correlativos (1, 2, 3...) en vez de códigos largos. Cada ID nuevo es el número más alto que ya existe en esa columna más 1, así que podés reordenar o completar filas a mano en la hoja sin que se rompa nada.
 - **Tipo de venta:** en la pestaña Vender hay dos botones, **💵 Efectivo** y **💳 Transferencia**. Por defecto queda en Efectivo; si el vendedor aplica una transferencia con el botón "Usar" (desde la pestaña Transferencias), cambia solo a Transferencia. Esto se guarda en la columna `Tipo_venta` de la hoja Ventas.
 - **Auditoría (vendedor):** muestra, solo para el vendedor que tiene la sesión abierta, cuánto vendió hoy en efectivo, cuánto por transferencia, y el detalle de cantidades por producto vendidas hoy. Se actualiza con el botón "🔄 Actualizar" o al abrir la pestaña.
+- **Ventas del día (vendedor):** lista todas las ventas registradas en el día en curso, sin importar qué vendedor las hizo, ordenadas de la más reciente a la más antigua. Cada tarjeta muestra hora, vendedor, tipo de venta, total y el detalle de productos vendidos en esa venta. Se actualiza con el botón "🔄 Actualizar" o al abrir la pestaña (no funciona sin conexión).
 
 ### Funcionamiento con poca o ninguna señal
 
@@ -101,7 +102,7 @@ Cada vez que quieras actualizar algo (por ejemplo la URL de Apps Script en `js/c
 1. Al abrir la app, ingresá tu nombre → **Entrar**. Se guarda mientras la app siga abierta (si la cerrás y la volvés a abrir, vuelve a pedir el nombre; así cada turno queda identificado).
 2. Pestaña **Productos**: tocá **+ Nuevo producto**, cargá nombre, precio y sacá/elegí una foto. **Guardar**. Se sube a la Google Sheet automáticamente.
 3. Pestaña **Vender**: tocá **+** sobre cada producto para agregarlo al carrito con la cantidad deseada. El total se calcula solo.
-4. Antes de imprimir por primera vez: tocá **🖨️ Impresora** (arriba), encendé/emparejá tu impresora térmica Bluetooth y seleccionala en la lista que aparece. Chrome recuerda la conexión para las próximas ventas (puede pedir reconectar si la impresora se apaga).
+4. Antes de imprimir por primera vez: tocá **🖨️ Impresora** (arriba), encendé/emparejá tu impresora térmica Bluetooth y seleccionala en la lista que aparece. Mientras no esté conectada (por ejemplo, recién entraste a la app o la impresora se apagó), el botón muestra un aviso ⚠️; desaparece apenas se conecta. Esto es sólo un indicador — no impide vender ni imprimir por la alternativa de "Compartir" (ver más abajo).
 5. Tocá **Registrar venta e imprimir**: la venta queda guardada en la Google Sheet y se imprime el comprobante con fecha, vendedor, productos, cantidades, subtotales y total.
 
 ---
