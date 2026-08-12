@@ -77,6 +77,16 @@ var Impresora = (function () {
       .replace(/ñ/gi, 'n');
   }
 
+  // Mismo criterio que en app.js: montos redondeados a entero, con puntos
+  // de mil (formato chileno), para que el comprobante impreso coincida con
+  // lo que se ve en pantalla.
+  function formatoMiles(n) {
+    return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+  function formatoMonto(n) {
+    return CONFIG.MONEDA + formatoMiles(Number(n) || 0);
+  }
+
   function textoABytes(texto) {
     var normal = normalizarTexto(texto) + '\n';
     var bytes = [];
@@ -104,14 +114,14 @@ var Impresora = (function () {
 
     venta.items.forEach(function (it) {
       linea(it.cantidad + ' x ' + it.productoNombre);
-      var precioTxt = CONFIG.MONEDA + it.subtotal.toFixed(2);
+      var precioTxt = formatoMonto(it.subtotal);
       var espacios = Math.max(1, 32 - precioTxt.length);
       linea(' '.repeat(espacios) + precioTxt);
     });
 
     linea('--------------------------------');
     negrita(true);
-    linea('TOTAL: ' + CONFIG.MONEDA + venta.total.toFixed(2));
+    linea('TOTAL: ' + formatoMonto(venta.total));
     negrita(false);
     linea('');
     centrar(true);
@@ -164,10 +174,10 @@ var Impresora = (function () {
     lineas.push({ texto: '--------------------------------', align: 'left' });
     venta.items.forEach(function (it) {
       lineas.push({ texto: it.cantidad + ' x ' + it.productoNombre, align: 'left' });
-      lineas.push({ texto: CONFIG.MONEDA + it.subtotal.toFixed(2), align: 'right' });
+      lineas.push({ texto: formatoMonto(it.subtotal), align: 'right' });
     });
     lineas.push({ texto: '--------------------------------', align: 'left' });
-    lineas.push({ texto: 'TOTAL: ' + CONFIG.MONEDA + venta.total.toFixed(2), negrita: true, align: 'left' });
+    lineas.push({ texto: 'TOTAL: ' + formatoMonto(venta.total), negrita: true, align: 'left' });
     lineas.push({ texto: '', align: 'left' });
     lineas.push({ texto: 'Gracias por su compra!', align: 'center' });
     return lineas;

@@ -38,8 +38,13 @@
     clearTimeout(toastTimeout);
     toastTimeout = setTimeout(function () { t.classList.add('oculto'); }, 3500);
   }
+  // Separa los miles con punto (formato chileno) y redondea a entero, sin
+  // decimales (ej. 1234.5 -> "$1.235").
+  function formatoMiles(n) {
+    return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
   function formatoMoneda(n) {
-    return CONFIG.MONEDA + Number(n).toFixed(2);
+    return CONFIG.MONEDA + formatoMiles(Number(n) || 0);
   }
 
   /* ---------- Login ---------- */
