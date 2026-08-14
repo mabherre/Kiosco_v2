@@ -9,7 +9,9 @@
     productos: [],
     carrito: {}, // { productoId: { producto, cantidad } }
     transferenciaSeleccionada: null, // { fila, fecha, run, nombreCompleto, abono }
-    tipoVenta: 'efectivo' // 'efectivo' | 'transferencia'
+    tipoVenta: 'efectivo', // 'efectivo' | 'transferencia'
+    alumnoActual: null, // { fila, apellidoMaterno } - credenciales del vendedor logueado
+    alumnosDisponibles: [] // copia de la hoja Alumno para los selects del login
   };
 
   /* ---------- Utilidades UI ---------- */
@@ -52,6 +54,21 @@
     var usuarioGuardado = sessionStorage.getItem('kiosco_usuario');
     var rolGuardado = sessionStorage.getItem('kiosco_rol');
     if (usuarioGuardado && rolGuardado) {
+      if (rolGuardado === 'vendedor') {
+        var alumnoGuardado = null;
+        try { alumnoGuardado = JSON.parse(sessionStorage.getItem('kiosco_alumno') || 'null'); } catch (e) {}
+        if (!alumnoGuardado || !alumnoGuardado.fila) {
+          // Sesión de vendedor incompleta (por ejemplo, restos de una
+          // versión anterior de la app): mejor pedir que entre de nuevo.
+          sessionStorage.removeItem('kiosco_usuario');
+          sessionStorage.removeItem('kiosco_rol');
+          sessionStorage.removeItem('kiosco_alumno');
+          $('pantalla-login').classList.add('activa');
+          return;
+        }
+        estado.alumnoActual = alumnoGuardado;
+        DB.establecerAlumno(alumnoGuardado);
+      }
       entrarComo(rolGuardado, usuarioGuardado);
       return;
     }
@@ -79,6 +96,7 @@
   $('btn-rol-vendedor').addEventListener('click', function () {
     $('login-paso-rol').classList.add('oculto');
     $('login-paso-vendedor').classList.remove('oculto');
+    cargarAlumnosLogin();
   });
   $('btn-rol-admin').addEventListener('click', function () {
     $('login-paso-rol').classList.add('oculto');
@@ -93,26 +111,85 @@
     $('login-paso-rol').classList.remove('oculto');
   });
 
-  // Paso 2a: entrar como vendedor
+  // Paso 2a: elegir curso y alumno (llena los selects del login de Vendedor)
+  function cargarAlumnosLogin() {
+    var selectCurso = $('select-curso-vendedor');
+    var selectAlumno = $('select-alumno-vendedor');
+    selectCurso.innerHTML = '<option value="">Cargando cursos...</option>';
+    selectCurso.disabled = true;
+    selectAlumno.innerHTML = '<option value="">Elegí primero un curso</option>';
+    selectAlumno.disabled = true;
+    DB.obtenerAlumnos()
+      .then(function (alumnos) {
+        estado.alumnosDisponibles = alumnos || [];
+        var cursos = [];
+        estado.alumnosDisponibles.forEach(function (a) {
+          if (a.curso && cursos.indexOf(a.curso) === -1) cursos.push(a.curso);
+        });
+        cursos.sort();
+        selectCurso.innerHTML = '<option value="">Elegí tu curso</option>' +
+          cursos.map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+        selectCurso.disabled = false;
+      })
+      .catch(function (err) {
+        selectCurso.innerHTML = '<option value="">No se pudo cargar (revisá la conexión)</option>';
+        toast('No se pudo cargar la lista de cursos: ' + err.message, true);
+      });
+  }
+
+  $('select-curso-vendedor').addEventListener('change', function () {
+    var curso = this.value;
+    var selectAlumno = $('select-alumno-vendedor');
+    if (!curso) {
+      selectAlumno.innerHTML = '<option value="">Elegí primero un curso</option>';
+      selectAlumno.disabled = true;
+      return;
+    }
+    var alumnosDelCurso = estado.alumnosDisponibles
+      .filter(function (a) { return a.curso === curso; })
+      .sort(function (a, b) { return (a.nombre + a.apellidoPaterno).localeCompare(b.nombre + b.apellidoPaterno); });
+    selectAlumno.innerHTML = '<option value="">Elegí tu nombre</option>' +
+      alumnosDelCurso.map(function (a) {
+        return '<option value="' + a.fila + '">' + escapeHtml(a.nombre + ' ' + a.apellidoPaterno) + '</option>';
+      }).join('');
+    selectAlumno.disabled = false;
+  });
+
+  function mostrarErrorVendedor(msg) {
+    $('login-error-vendedor').textContent = msg;
+    $('login-error-vendedor').classList.remove('oculto');
+  }
+
+  // Paso 2a: entrar como vendedor (el alumno elegido + su apellido materno)
   $('btn-entrar-vendedor').addEventListener('click', function () {
-    var clave = $('input-clave-vendedor').value;
-    var nombre = $('input-nombre-vendedor').value.trim();
-    if (clave !== CONFIG.CLAVE_VENDEDOR) {
-      $('login-error-vendedor').textContent = 'Clave incorrecta.';
-      $('login-error-vendedor').classList.remove('oculto');
+    $('login-error-vendedor').classList.add('oculto');
+    if (!$('select-curso-vendedor').value) {
+      mostrarErrorVendedor('Elegí tu curso.');
       return;
     }
-    if (!nombre) {
-      $('login-error-vendedor').textContent = 'Ingresá tu nombre para continuar.';
-      $('login-error-vendedor').classList.remove('oculto');
+    var fila = Number($('select-alumno-vendedor').value);
+    if (!fila) {
+      mostrarErrorVendedor('Elegí tu nombre de la lista.');
       return;
     }
-    entrarComo('vendedor', nombre);
+    var apellidoMaterno = $('input-apellido-materno').value.trim();
+    if (!apellidoMaterno) {
+      mostrarErrorVendedor('Ingresá tu apellido materno.');
+      return;
+    }
+    mostrarCarga('Verificando...');
+    DB.iniciarSesionAlumno(fila, apellidoMaterno)
+      .then(function (resp) {
+        var alumno = { fila: fila, apellidoMaterno: apellidoMaterno };
+        estado.alumnoActual = alumno;
+        DB.establecerAlumno(alumno);
+        sessionStorage.setItem('kiosco_alumno', JSON.stringify(alumno));
+        entrarComo('vendedor', resp.usuario);
+      })
+      .catch(function (err) { mostrarErrorVendedor(err.message); })
+      .then(ocultarCarga);
   });
-  $('input-clave-vendedor').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') $('btn-entrar-vendedor').click();
-  });
-  $('input-nombre-vendedor').addEventListener('keydown', function (e) {
+  $('input-apellido-materno').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') $('btn-entrar-vendedor').click();
   });
 
@@ -139,6 +216,7 @@
   $('btn-cambiar-usuario').addEventListener('click', function () {
     sessionStorage.removeItem('kiosco_usuario');
     sessionStorage.removeItem('kiosco_rol');
+    sessionStorage.removeItem('kiosco_alumno');
     location.reload();
   });
 
@@ -166,6 +244,7 @@
     if (nombreTab === 'transferencias') refrescarCacheTransferencias();
     if (nombreTab === 'auditoria') cargarAuditoria();
     if (nombreTab === 'ventas-dia') cargarVentasDelDia();
+    if (nombreTab === 'recaudacion') cargarRecaudacion();
   }
 
   document.querySelectorAll('.tab').forEach(function (btn) {
@@ -274,7 +353,12 @@
       items: items,
       total: total,
       fecha: new Date().toISOString(),
-      tipoVenta: estado.tipoVenta
+      tipoVenta: estado.tipoVenta,
+      // Se adjunta acá (y no en db.js) para que quede guardado dentro de la
+      // venta si termina encolada sin señal: así, cuando se sincronice más
+      // tarde, se revalida con las credenciales de quien la hizo, aunque
+      // para entonces haya iniciado sesión otro vendedor en el celular.
+      alumno: estado.alumnoActual
     };
     if (estado.transferenciaSeleccionada) {
       venta.transferenciaFila = estado.transferenciaSeleccionada.fila;
@@ -731,6 +815,47 @@
   }
 
   $('btn-actualizar-ventas-dia').addEventListener('click', cargarVentasDelDia);
+
+  /* ---------- Recaudación por vendedor y día (admin) ---------- */
+  function cargarRecaudacion() {
+    mostrarCarga('Cargando recaudación...');
+    DB.recaudacionPorVendedorYDia()
+      .then(function (lista) {
+        var cont = $('tabla-recaudacion-wrap');
+        if (!lista.length) {
+          cont.innerHTML = '<p class="vacio">Todavía no hay ventas registradas.</p>';
+          return;
+        }
+        var totalEfectivo = 0, totalTransferencia = 0, totalGeneral = 0;
+        var filas = lista.map(function (r) {
+          totalEfectivo += r.efectivo;
+          totalTransferencia += r.transferencia;
+          totalGeneral += r.total;
+          return '<tr>' +
+            '<td>' + escapeHtml(r.fecha) + '</td>' +
+            '<td>' + escapeHtml(r.usuario) + '</td>' +
+            '<td>' + formatoMoneda(r.efectivo) + '</td>' +
+            '<td>' + formatoMoneda(r.transferencia) + '</td>' +
+            '<td>' + formatoMoneda(r.total) + '</td>' +
+            '</tr>';
+        }).join('');
+        cont.innerHTML =
+          '<table class="tabla-recaudacion">' +
+          '<thead><tr><th>Fecha</th><th>Vendedor</th><th>Efectivo</th><th>Transferencia</th><th>Total</th></tr></thead>' +
+          '<tbody>' + filas + '</tbody>' +
+          '<tfoot><tr>' +
+          '<td colspan="2">Total general</td>' +
+          '<td>' + formatoMoneda(totalEfectivo) + '</td>' +
+          '<td>' + formatoMoneda(totalTransferencia) + '</td>' +
+          '<td>' + formatoMoneda(totalGeneral) + '</td>' +
+          '</tr></tfoot>' +
+          '</table>';
+      })
+      .catch(function (err) { toast('Error al cargar la recaudación: ' + err.message, true); })
+      .then(ocultarCarga);
+  }
+
+  $('btn-actualizar-recaudacion').addEventListener('click', cargarRecaudacion);
 
   /* ---------- Helpers ---------- */
   function escapeHtml(s) {

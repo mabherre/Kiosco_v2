@@ -1,0 +1,102 @@
+<svg viewBox="0 0 700 1160" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Calibri, Arial, sans-serif">
+  <title>Diagrama de proceso — Venta (Vendedor)</title>
+  <desc>Diagrama de flujo del proceso completo de una venta para el perfil Vendedor: iniciar sesión, seleccionar productos, decidir si el pago es por transferencia, registrar la venta, verificar si hay conexión a internet, decidir cómo se imprime o comparte el comprobante, y entregarlo al cliente.</desc>
+  <defs>
+    <marker id="arrowP" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="700" height="1160" fill="#ffffff"/>
+
+  <text x="350" y="14" text-anchor="middle" font-size="12" fill="#666666">▭ acción · ◇ decisión (azul)</text>
+
+  <rect x="180" y="20" width="340" height="50" rx="25" fill="#ffffff" stroke="#1e3a5f" stroke-width="2.5"/>
+  <text x="350" y="50" text-anchor="middle" font-size="15" font-weight="700" fill="#1e3a5f">Iniciar sesión como Vendedor</text>
+
+  <path d="M350,70 L350,100" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+
+  <rect x="160" y="100" width="380" height="60" rx="10" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="350" y="126" text-anchor="middle" font-size="15" font-weight="700" fill="#12233d">Seleccionar productos</text>
+  <text x="350" y="146" text-anchor="middle" font-size="13" fill="#666666">en la pantalla Vender</text>
+
+  <path d="M350,160 L350,190" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+
+  <polygon points="350,190 490,235 350,280 210,235" fill="#ffffff" stroke="#1e3a5f" stroke-width="2.5"/>
+  <text x="350" y="230" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">¿Se paga con</text>
+  <text x="350" y="248" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">transferencia?</text>
+
+  <path d="M210,235 L170,310" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+  <path d="M490,235 L530,310" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+  <text x="168" y="270" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">No</text>
+  <text x="532" y="270" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">Sí</text>
+
+  <rect x="20" y="310" width="300" height="60" rx="10" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="170" y="336" text-anchor="middle" font-size="14" font-weight="700" fill="#12233d">Efectivo</text>
+  <text x="170" y="356" text-anchor="middle" font-size="12" fill="#666666">(opción por defecto)</text>
+
+  <rect x="380" y="310" width="300" height="60" rx="10" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="530" y="336" text-anchor="middle" font-size="14" font-weight="700" fill="#12233d">Transferencia</text>
+  <text x="530" y="356" text-anchor="middle" font-size="12" fill="#666666">Buscar y tocar "Usar"</text>
+
+  <path d="M170,370 L350,400" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+  <path d="M530,370 L350,400" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+
+  <rect x="170" y="400" width="360" height="60" rx="10" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="350" y="436" text-anchor="middle" font-size="15" font-weight="700" fill="#12233d">Tocar "Registrar venta"</text>
+
+  <path d="M350,460 L350,490" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+
+  <polygon points="350,490 490,535 350,580 210,535" fill="#ffffff" stroke="#1e3a5f" stroke-width="2.5"/>
+  <text x="350" y="530" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">¿Hay conexión</text>
+  <text x="350" y="548" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">a internet?</text>
+
+  <path d="M210,535 L170,610" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+  <path d="M490,535 L530,610" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+  <text x="168" y="570" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">Sí</text>
+  <text x="532" y="570" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">No</text>
+
+  <rect x="20" y="610" width="300" height="60" rx="10" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="170" y="636" text-anchor="middle" font-size="14" font-weight="700" fill="#12233d">Se guarda en la</text>
+  <text x="170" y="656" text-anchor="middle" font-size="12" fill="#666666">Google Sheet</text>
+
+  <rect x="380" y="610" width="300" height="60" rx="10" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="530" y="636" text-anchor="middle" font-size="14" font-weight="700" fill="#12233d">Se guarda en el celular</text>
+  <text x="530" y="656" text-anchor="middle" font-size="12" fill="#666666">y se sincroniza sola después</text>
+
+  <path d="M170,670 L350,700" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+  <path d="M530,670 L350,700" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+
+  <rect x="170" y="700" width="360" height="60" rx="10" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="350" y="736" text-anchor="middle" font-size="15" font-weight="700" fill="#12233d">Aparece "Venta registrada"</text>
+
+  <path d="M350,760 L350,790" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+
+  <polygon points="350,790 490,835 350,880 210,835" fill="#ffffff" stroke="#1e3a5f" stroke-width="2.5"/>
+  <text x="350" y="830" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">¿Impresora Bluetooth</text>
+  <text x="350" y="848" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">conectada?</text>
+
+  <path d="M210,835 L170,910" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+  <path d="M490,835 L530,910" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+  <text x="168" y="870" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">Sí</text>
+  <text x="532" y="870" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">No</text>
+
+  <rect x="20" y="910" width="300" height="60" rx="10" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="170" y="936" text-anchor="middle" font-size="14" font-weight="700" fill="#12233d">Se imprime directo</text>
+  <text x="170" y="956" text-anchor="middle" font-size="12" fill="#666666">(impresora ESC/POS genérica)</text>
+
+  <rect x="380" y="910" width="300" height="60" rx="10" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="530" y="936" text-anchor="middle" font-size="14" font-weight="700" fill="#12233d">Compartir como imagen</text>
+  <text x="530" y="956" text-anchor="middle" font-size="12" fill="#666666">(ej. app Fun Print)</text>
+
+  <path d="M170,970 L350,1000" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+  <path d="M530,970 L350,1000" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+
+  <rect x="170" y="1000" width="360" height="60" rx="10" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="350" y="1036" text-anchor="middle" font-size="15" font-weight="700" fill="#12233d">Entregar el comprobante</text>
+
+  <path d="M350,1060 L350,1090" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowP)"/>
+
+  <rect x="150" y="1090" width="400" height="50" rx="25" fill="#ffffff" stroke="#1e3a5f" stroke-width="2.5"/>
+  <text x="350" y="1120" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a5f">Fin — volver a Vender para la próxima venta</text>
+</svg>

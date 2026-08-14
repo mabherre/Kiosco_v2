@@ -10,6 +10,11 @@
  *  - Ventas         : ID | Fecha | Usuario | Total | Tipo_venta
  *  - DetalleVentas  : ID | VentaID | ProductoID | Cantidad | PrecioUnitario
  *
+ * Además usa una pestaña "Alumno" (creada a mano) con columnas Curso,
+ * Nombre, Apellido Paterno y Apellido Materno: el Vendedor entra eligiendo
+ * su curso y su nombre, y confirma con su Apellido Materno a modo de
+ * contraseña individual (no hay clave compartida de Vendedor).
+ *
  * Los ID de las tres hojas son números enteros correlativos (no UUID):
  * cada uno sigue desde el máximo que ya exista en su hoja.
  *
@@ -18,15 +23,16 @@
 
 var CARPETA_FOTOS = 'FotosKiosco';
 
-// Estos dos valores tienen que ser IDÉNTICOS a los de js/config.js
-// (TOKEN_APP y CLAVE_ADMIN). Si los cambiás acá, cambialos también allá.
+// Este valor tiene que ser IDÉNTICO al de js/config.js (TOKEN_APP y
+// CLAVE_ADMIN). Si lo cambiás acá, cambialo también allá.
 var TOKEN_APP = 'kioscoAppSecreto2026';
 var CLAVE_ADMIN = 'kiosco2026';
-var CLAVE_VENDEDOR = 'ventas2026';
 
 // Acciones que sólo puede hacer un Administrador (requieren CLAVE_ADMIN).
-var ACCIONES_SOLO_ADMIN = ['agregarProducto', 'actualizarProducto', 'eliminarProducto'];
-// Acciones que sólo puede hacer un Vendedor (requieren CLAVE_VENDEDOR).
+var ACCIONES_SOLO_ADMIN = ['agregarProducto', 'actualizarProducto', 'eliminarProducto', 'recaudacionPorVendedorYDia'];
+// Acciones que sólo puede hacer un Vendedor. En vez de una clave
+// compartida, cada pedido tiene que traer data.alumno = {fila, apellidoMaterno}
+// y se valida contra la hoja Alumno (ver validarAlumno_).
 var ACCIONES_SOLO_VENDEDOR = ['registrarVenta', 'buscarTransferencias', 'obtenerTransferenciasSinUsar', 'auditoriaDelDia', 'ventasDelDia'];
 
 // Hoja externa donde se registran las transferencias recibidas (abonos de
@@ -75,9 +81,13 @@ function doPost(e) {
       return respond({ ok: false, error: 'Clave de administrador incorrecta.' });
     }
 
-    // Filtro 3: las acciones de vendedor además necesitan su clave.
-    if (ACCIONES_SOLO_VENDEDOR.indexOf(accion) !== -1 && data.claveVendedor !== CLAVE_VENDEDOR) {
-      return respond({ ok: false, error: 'Clave de vendedor incorrecta.' });
+    // Filtro 3: las acciones de vendedor necesitan un alumno válido (curso +
+    // nombre + apellido materno correcto), no una clave compartida.
+    if (ACCIONES_SOLO_VENDEDOR.indexOf(accion) !== -1) {
+      var validacionAlumno = validarAlumno_(data.alumno || {});
+      if (!validacionAlumno.autorizado) {
+        return respond({ ok: false, error: validacionAlumno.error || 'No autorizado como vendedor.' });
+      }
     }
 
     switch (accion) {
@@ -111,8 +121,23 @@ function doPost(e) {
       case 'ventasDelDia':
         resultado = ventasDelDia();
         break;
+      case 'obtenerAlumnos':
+        resultado = obtenerAlumnos();
+        break;
+      case 'iniciarSesionAlumno':
+        resultado = validarAlumno_(data.alumno || {});
+        break;
+      case 'recaudacionPorVendedorYDia':
+        resultado = recaudacionPorVendedorYDia();
+        break;
       default:
         return respond({ ok: false, error: 'Acción POST no reconocida: ' + accion });
+    }
+    // Algunas acciones (como iniciarSesionAlumno) devuelven autorizado:false
+    // en vez de tirar una excepción; se traduce a un error prolijo en vez de
+    // envolverlo como si hubiera sido exitoso.
+    if (resultado && resultado.autorizado === false) {
+      return respond({ ok: false, error: resultado.error || 'No autorizado.' });
     }
     return respond(Object.assign({ ok: true }, resultado));
   } catch (err) {
@@ -151,6 +176,12 @@ function getDetalleSheet_() {
   // Cantidad x PrecioUnitario.
   return getSheet_('DetalleVentas', ['ID', 'VentaID', 'ProductoID', 'Cantidad', 'PrecioUnitario']);
 }
+function getAlumnoSheet_() {
+  // Esta pestaña ya la crea y completa la persona a cargo del kiosco (curso,
+  // nombre, apellido paterno y apellido materno de cada alumno). Si por
+  // algún motivo no existe todavía, se crea vacía con estos encabezados.
+  return getSheet_('Alumno', ['Curso', 'Nombre', 'Apellido Paterno', 'Apellido Materno']);
+}
 
 // Da el próximo ID entero correlativo de una hoja, mirando el máximo que
 // ya existe en su primera columna (evita choques si se editaron IDs a mano).
@@ -176,6 +207,17 @@ function indiceColumna_(sheet, nombreEncabezado) {
     if (String(encabezados[i]).trim().toLowerCase() === nombreEncabezado.trim().toLowerCase()) {
       return i + 1;
     }
+  }
+  return -1;
+}
+
+// Igual que indiceColumna_, pero probando varios nombres posibles para el
+// mismo encabezado (por ejemplo, "Apellido Materno" o "Segundo Apellido").
+// Devuelve el índice del primero que encuentre.
+function indiceColumnaVarios_(sheet, nombresPosibles) {
+  for (var i = 0; i < nombresPosibles.length; i++) {
+    var idx = indiceColumna_(sheet, nombresPosibles[i]);
+    if (idx > 0) return idx;
   }
   return -1;
 }
@@ -479,6 +521,110 @@ function esMismoDia_(a, b) {
   return a.getFullYear() === b.getFullYear() &&
          a.getMonth() === b.getMonth() &&
          a.getDate() === b.getDate();
+}
+
+// Recaudación total por vendedor y por día, separando efectivo de
+// transferencia. Incluye todo el historial de la hoja Ventas (no sólo el
+// día de hoy). Sólo Administrador.
+function recaudacionPorVendedorYDia() {
+  var ventasSheet = getVentasSheet_();
+  var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
+  var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
+  var idxTotal = indiceColumna_(ventasSheet, 'Total');
+  var idxTipoVenta = indiceColumna_(ventasSheet, 'Tipo_venta');
+
+  var zonaHoraria = Session.getScriptTimeZone();
+  var valores = ventasSheet.getDataRange().getValues();
+  var grupos = {}; // clave: "AAAA-MM-DD|usuario"
+
+  for (var i = 1; i < valores.length; i++) {
+    var fila = valores[i];
+    var fechaFila = idxFecha > 0 ? fila[idxFecha - 1] : null;
+    if (!(fechaFila instanceof Date)) continue;
+
+    var usuario = idxUsuario > 0 ? String(fila[idxUsuario - 1] || '(sin nombre)') : '(sin nombre)';
+    var total = idxTotal > 0 ? (Number(fila[idxTotal - 1]) || 0) : 0;
+    var tipo = idxTipoVenta > 0 ? String(fila[idxTipoVenta - 1] || '').toLowerCase() : 'efectivo';
+    var fechaSolo = Utilities.formatDate(fechaFila, zonaHoraria, 'yyyy-MM-dd');
+    var clave = fechaSolo + '|' + usuario;
+
+    if (!grupos[clave]) {
+      grupos[clave] = { fecha: fechaSolo, usuario: usuario, efectivo: 0, transferencia: 0, total: 0 };
+    }
+    if (tipo === 'transferencia') grupos[clave].transferencia += total;
+    else grupos[clave].efectivo += total;
+    grupos[clave].total += total;
+  }
+
+  var lista = Object.keys(grupos).map(function (clave) { return grupos[clave]; });
+  // Más reciente primero; a igualdad de fecha, orden alfabético por vendedor.
+  lista.sort(function (a, b) {
+    if (a.fecha !== b.fecha) return a.fecha < b.fecha ? 1 : -1;
+    return a.usuario.localeCompare(b.usuario);
+  });
+
+  return { recaudacion: lista };
+}
+
+/* ---------------- Alumnos (login de Vendedor) ---------------- */
+
+// Valida un alumno contra la hoja Alumno: la "contraseña" es su Apellido
+// Materno. No hay clave compartida de Vendedor; cada pedido de una acción
+// de vendedor trae {fila, apellidoMaterno} y se revalida acá mismo.
+function validarAlumno_(alumno) {
+  var sheet = getAlumnoSheet_();
+  var fila = Number(alumno && alumno.fila);
+  if (!fila || fila < 2 || fila > sheet.getLastRow()) {
+    return { autorizado: false, error: 'Seleccioná tu curso y tu nombre de la lista.' };
+  }
+
+  var idxCurso = indiceColumnaVarios_(sheet, ['Curso']);
+  var idxNombre = indiceColumnaVarios_(sheet, ['Nombre', 'Nombres']);
+  var idxApPaterno = indiceColumnaVarios_(sheet, ['Apellido Paterno', 'ApellidoPaterno', 'Primer Apellido']);
+  var idxApMaterno = indiceColumnaVarios_(sheet, ['Apellido Materno', 'ApellidoMaterno', 'Segundo Apellido', 'SegundoApellido']);
+
+  var filaValores = sheet.getRange(fila, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var nombre = idxNombre > 0 ? String(filaValores[idxNombre - 1] || '').trim() : '';
+  if (!nombre) {
+    return { autorizado: false, error: 'Alumno no encontrado.' };
+  }
+
+  var apellidoMaternoReal = idxApMaterno > 0 ? String(filaValores[idxApMaterno - 1] || '').trim() : '';
+  var ingresado = normalizarTexto_(alumno.apellidoMaterno);
+  if (!apellidoMaternoReal || !ingresado || ingresado !== normalizarTexto_(apellidoMaternoReal)) {
+    return { autorizado: false, error: 'El apellido materno no coincide.' };
+  }
+
+  var apellidoPaterno = idxApPaterno > 0 ? String(filaValores[idxApPaterno - 1] || '').trim() : '';
+  var curso = idxCurso > 0 ? String(filaValores[idxCurso - 1] || '').trim() : '';
+  var usuario = (nombre + ' ' + apellidoPaterno + (curso ? ' (' + curso + ')' : '')).trim();
+
+  return { autorizado: true, usuario: usuario, curso: curso };
+}
+
+// Lista de alumnos para poblar los selectores de curso y nombre en el
+// login. A propósito NO incluye el Apellido Materno (la "contraseña"), para
+// no exponerlo antes de que el alumno se identifique.
+function obtenerAlumnos() {
+  var sheet = getAlumnoSheet_();
+  var idxCurso = indiceColumnaVarios_(sheet, ['Curso']);
+  var idxNombre = indiceColumnaVarios_(sheet, ['Nombre', 'Nombres']);
+  var idxApPaterno = indiceColumnaVarios_(sheet, ['Apellido Paterno', 'ApellidoPaterno', 'Primer Apellido']);
+
+  var valores = sheet.getDataRange().getValues();
+  var alumnos = [];
+  for (var i = 1; i < valores.length; i++) {
+    var fila = valores[i];
+    var nombre = idxNombre > 0 ? String(fila[idxNombre - 1] || '').trim() : '';
+    if (!nombre) continue; // fila vacía
+    alumnos.push({
+      fila: i + 1,
+      curso: idxCurso > 0 ? String(fila[idxCurso - 1] || '').trim() : '',
+      nombre: nombre,
+      apellidoPaterno: idxApPaterno > 0 ? String(fila[idxApPaterno - 1] || '').trim() : ''
+    });
+  }
+  return { alumnos: alumnos };
 }
 
 /* ---------------- Transferencias ---------------- */

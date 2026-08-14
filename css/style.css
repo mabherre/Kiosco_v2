@@ -62,14 +62,18 @@ body {
   display: block;
   margin: 0 auto 10px;
 }
-.login-box input {
+.login-box input,
+.login-box select {
   width: 100%;
   font-size: 18px;
   padding: 14px;
   margin: 14px 0;
   border-radius: 10px;
   border: 1px solid var(--gris-borde);
+  background: #fff;
+  font-family: inherit;
 }
+.login-box select:disabled { color: #999; background: var(--gris-fondo); }
 .login-box .btn { width: 100%; margin-top: 10px; }
 
 /* ---------- Badge de pendientes / aviso offline ---------- */
@@ -311,6 +315,42 @@ body {
 }
 .resumen-card-valor { font-size: 28px; font-weight: 700; color: var(--verde-oscuro); }
 .resumen-card-label { font-size: 13px; color: #666; margin-top: 4px; }
+
+/* ---------- Recaudación (admin) ---------- */
+.tabla-recaudacion-wrap { margin-top: 14px; overflow-x: auto; }
+.tabla-recaudacion-wrap .vacio { color: #999; font-size: 14px; }
+table.tabla-recaudacion {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--gris-borde);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 14px;
+  min-width: 560px;
+}
+table.tabla-recaudacion th, table.tabla-recaudacion td {
+  padding: 10px 12px;
+  text-align: right;
+  border-bottom: 1px solid var(--gris-borde);
+  white-space: nowrap;
+}
+table.tabla-recaudacion th:first-child, table.tabla-recaudacion td:first-child,
+table.tabla-recaudacion th:nth-child(2), table.tabla-recaudacion td:nth-child(2) {
+  text-align: left;
+}
+table.tabla-recaudacion thead th {
+  background: var(--verde-oscuro);
+  color: #fff;
+  font-weight: 600;
+}
+table.tabla-recaudacion tbody tr:last-child td { border-bottom: none; }
+table.tabla-recaudacion tfoot td {
+  font-weight: 700;
+  background: var(--gris-fondo);
+  border-top: 2px solid var(--gris-borde);
+  border-bottom: none;
+}
 
 /* ---------- Auditoría ---------- */
 .lista-auditoria-productos { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }

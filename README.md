@@ -2,19 +2,33 @@
 
 App web (funciona en el navegador Chrome de un celular o tablet Android) para:
 
-- Ingresar con dos perfiles: **Vendedor** (solo nombre) y **Administrador** (clave compartida + nombre, para saber quién hizo cada cambio).
-- **Administrador:** CRUD completo de productos con foto, y un resumen con la cantidad y el monto total de transferencias sin usar.
+- Ingresar con dos perfiles: **Vendedor** (elige su curso y su nombre de una lista, y confirma con su apellido materno) y **Administrador** (clave compartida + nombre, para saber quién hizo cada cambio).
+- **Administrador:** CRUD completo de productos con foto, un resumen con la cantidad y el monto total de transferencias sin usar, y una pestaña de **Recaudación** con el total recaudado por cada vendedor y día, separando efectivo de transferencia.
 - **Vendedor:** registrar ventas seleccionando productos y cantidades (con subtotales y total automáticos), marcando si la venta es en **efectivo** o por **transferencia**, y buscar transferencias recibidas por RUN o nombre para aplicarlas a una venta. También tiene una pestaña de **Auditoría** con el total vendido en el día (efectivo y transferencia) y el detalle por producto, ambos limitados a sus propias ventas del día, y una pestaña de **Ventas del día** con todas las ventas del día en curso (de cualquier vendedor), de la más reciente a la más antigua, con el detalle de productos de cada una.
 - Guardar todo en una Google Sheet compartida (productos, ventas y detalle de cada venta).
 - Imprimir un comprobante por una impresora térmica Bluetooth (ESC/POS, 58mm) al cerrar cada venta.
 
 ### Perfiles y claves
 
-Tanto Administrador como Vendedor piden una clave compartida (la misma para todas las personas de ese perfil) además del nombre. Se definen en `js/config.js`: `CLAVE_ADMIN` (por defecto `kiosco2026`) y `CLAVE_VENDEDOR` (por defecto `ventas2026`). Cambialas por las que quieras usar.
+**Administrador:** pide una clave compartida (la misma para todos los administradores) además del nombre. Se define en `js/config.js` como `CLAVE_ADMIN` (por defecto `kiosco2026`). Cambiala por la que quieras usar.
 
-Además del filtro visual, el backend (`Codigo.gs`) valida esas mismas claves: `CLAVE_ADMIN` antes de agregar, editar o borrar productos; `CLAVE_VENDEDOR` antes de registrar una venta o buscar transferencias. También exige un `TOKEN_APP` en cada pedido para que no cualquiera que encuentre la URL de Apps Script pueda usarla directo sin pasar por la app. **Importante:** `CLAVE_ADMIN`, `CLAVE_VENDEDOR` y `TOKEN_APP` tienen que ser idénticos en `js/config.js` y en `Codigo.gs` — si cambiás uno, cambiá el otro y volvé a desplegar una nueva versión en Apps Script.
+**Vendedor:** ya no tiene una clave compartida. En su lugar, elige su **curso** y después su **nombre** en dos listas desplegables, y confirma con su **Apellido Materno** a modo de contraseña individual. Esos datos salen de la pestaña **Alumno** de la Google Sheet (ver sección "Hoja Alumno" más abajo).
 
-Dicho esto, como es una app 100% del lado del cliente (sin usuarios reales con contraseña propia), estos valores quedan visibles para cualquiera que revise el código fuente de la página o el repositorio de GitHub. Es una barrera razonable contra un uso casual o accidental, no una seguridad real de nivel empresarial — no seria buena idea usar esta app para datos más sensibles que los que ya maneja (productos, ventas, y el RUN/nombre de las transferencias).
+Además del filtro visual, el backend (`Codigo.gs`) valida todo del lado del servidor: `CLAVE_ADMIN` antes de agregar, editar o borrar productos; y el Apellido Materno del alumno elegido (comparado contra la hoja Alumno) antes de registrar una venta, buscar transferencias, o ver auditoría/ventas del día/recaudación. También exige un `TOKEN_APP` en cada pedido para que no cualquiera que encuentre la URL de Apps Script pueda usarla directo sin pasar por la app. **Importante:** `CLAVE_ADMIN` y `TOKEN_APP` tienen que ser idénticos en `js/config.js` y en `Codigo.gs` — si cambiás uno, cambiá el otro y volvé a desplegar una nueva versión en Apps Script.
+
+Dicho esto, como es una app 100% del lado del cliente (sin usuarios reales con contraseña propia en el sentido estricto), estos valores quedan visibles para cualquiera que revise el código fuente de la página o el repositorio de GitHub. Es una barrera razonable contra un uso casual o accidental, no una seguridad real de nivel empresarial — no sería buena idea usar esta app para datos más sensibles que los que ya maneja (productos, ventas, apellidos de alumnos, y el RUN/nombre de las transferencias).
+
+### Hoja Alumno (login de Vendedor)
+
+La pestaña **Alumno** de la Google Sheet la carga y mantiene quien administra el kiosco (no la genera la app). Tiene que tener estas columnas (en cualquier orden — el backend las busca por nombre, no por posición):
+
+| Curso | Nombre | Apellido Paterno | Apellido Materno |
+|---|---|---|---|
+
+- **Apellido Materno** es la "contraseña" que cada alumno escribe para entrar como Vendedor. No se muestra nunca en la lista de nombres del login (esa lista sólo trae curso, nombre y apellido paterno).
+- Si preferís otros encabezados (por ejemplo "Segundo Apellido" en vez de "Apellido Materno"), también los reconoce: revisá la función `indiceColumnaVarios_` en `Codigo.gs` si necesitás agregar otra variante.
+- Si la pestaña Alumno no existe todavía, el backend la crea vacía con estos encabezados la primera vez que alguien intenta ver la lista de cursos — pero hay que completarla a mano con los datos reales para que alguien pueda entrar.
+- El nombre que queda registrado en cada venta (columna Usuario de la hoja Ventas) es "Nombre ApellidoPaterno (Curso)", generado por el backend a partir de esta hoja.
 
 ### Transferencias
 
@@ -28,6 +42,7 @@ Para que esto funcione, la cuenta de Google que despliega el Apps Script (la mis
 - **Tipo de venta:** en la pestaña Vender hay dos botones, **💵 Efectivo** y **💳 Transferencia**. Por defecto queda en Efectivo; si el vendedor aplica una transferencia con el botón "Usar" (desde la pestaña Transferencias), cambia solo a Transferencia. Esto se guarda en la columna `Tipo_venta` de la hoja Ventas.
 - **Auditoría (vendedor):** muestra, solo para el vendedor que tiene la sesión abierta, cuánto vendió hoy en efectivo, cuánto por transferencia, y el detalle de cantidades por producto vendidas hoy. Se actualiza con el botón "🔄 Actualizar" o al abrir la pestaña.
 - **Ventas del día (vendedor):** lista todas las ventas registradas en el día en curso, sin importar qué vendedor las hizo, ordenadas de la más reciente a la más antigua. Cada tarjeta muestra hora, vendedor, tipo de venta, total y el detalle de productos vendidos en esa venta. Se actualiza con el botón "🔄 Actualizar" o al abrir la pestaña (no funciona sin conexión).
+- **Recaudación (administrador):** tabla con todo el historial de ventas agrupado por vendedor y día, mostrando el total en efectivo, el total por transferencia y el total general de cada combinación, más una fila con los totales generales. Se actualiza con el botón "🔄 Actualizar" o al abrir la pestaña (no funciona sin conexión).
 
 ### Funcionamiento con poca o ninguna señal
 
@@ -62,6 +77,8 @@ Construida sólo con herramientas gratuitas: HTML/CSS/JavaScript plano + Google 
 > Cada vez que modifiques `Codigo.gs`, tenés que volver a **Implementar → Administrar implementaciones → editar (lápiz) → Nueva versión → Implementar** para que los cambios se apliquen.
 
 Las pestañas `Productos`, `Ventas` y `DetalleVentas` se crean solas en la hoja la primera vez que la app los necesita, ya con la columna `Tipo_venta` incluida en `Ventas`. Si ya tenías estas pestañas de antes, agregá manualmente la columna `Tipo_venta` en `Ventas` (el nombre del encabezado puede ir en cualquier posición: el backend lo busca por nombre, no por posición fija).
+
+La pestaña `Alumno` (curso, nombre y apellidos de cada alumno, para el login de Vendedor) **hay que cargarla a mano** con los datos reales — ver la sección "Hoja Alumno" más abajo.
 
 ---
 
@@ -99,7 +116,7 @@ Cada vez que quieras actualizar algo (por ejemplo la URL de Apps Script en `js/c
 
 ## 4. Primer uso
 
-1. Al abrir la app, ingresá tu nombre → **Entrar**. Se guarda mientras la app siga abierta (si la cerrás y la volvés a abrir, vuelve a pedir el nombre; así cada turno queda identificado).
+1. Al abrir la app como Vendedor: elegí tu curso, después tu nombre, ingresá tu Apellido Materno → **Entrar**. La sesión se guarda mientras la app siga abierta (si la cerrás y la volvés a abrir, se mantiene; para cambiar de persona usá el botón "Salir").
 2. Pestaña **Productos**: tocá **+ Nuevo producto**, cargá nombre, precio y sacá/elegí una foto. **Guardar**. Se sube a la Google Sheet automáticamente.
 3. Pestaña **Vender**: tocá **+** sobre cada producto para agregarlo al carrito con la cantidad deseada. El total se calcula solo.
 4. Antes de imprimir por primera vez: tocá **🖨️ Impresora** (arriba), encendé/emparejá tu impresora térmica Bluetooth y seleccionala en la lista que aparece. Mientras no esté conectada (por ejemplo, recién entraste a la app o la impresora se apagó), el botón muestra un aviso ⚠️; desaparece apenas se conecta. Esto es sólo un indicador — no impide vender ni imprimir por la alternativa de "Compartir" (ver más abajo).

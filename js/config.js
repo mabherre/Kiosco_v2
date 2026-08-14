@@ -14,9 +14,9 @@ var CONFIG = {
   // Clave para entrar como Administrador. Es la misma para todos los
   // administradores. Cambiala por la que quieras usar.
   CLAVE_ADMIN: 'kiosco2026',
-  // Clave para entrar como Vendedor. Es la misma para todos los vendedores
-  // (distinta a la de administrador). Cambiala por la que quieras usar.
-  CLAVE_VENDEDOR: 'ventas2026',
+  // El Vendedor ya no usa una clave compartida: entra eligiendo su curso y
+  // su nombre, y confirma con su Apellido Materno (se valida contra la
+  // hoja "Alumno" de la planilla).
   // Token que viaja en cada pedido al backend para que Apps Script sepa que
   // viene de esta app. Tiene que ser IDÉNTICO al TOKEN_APP de Codigo.gs —
   // si cambiás uno, cambiá el otro.

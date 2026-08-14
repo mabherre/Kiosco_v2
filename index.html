@@ -22,12 +22,17 @@
     <button id="btn-rol-admin" class="btn btn-grande">🔑 Administrador</button>
   </div>
 
-  <!-- Paso 2a: clave + nombre (vendedor) -->
+  <!-- Paso 2a: curso + alumno + apellido materno (vendedor) -->
   <div class="login-box oculto" id="login-paso-vendedor">
     <h1>🏪 Kiosco</h1>
-    <p>Ingresá la clave de vendedor y tu nombre.</p>
-    <input type="password" id="input-clave-vendedor" placeholder="Clave" autocomplete="off">
-    <input type="text" id="input-nombre-vendedor" placeholder="Tu nombre" autocomplete="off">
+    <p>Elegí tu curso y tu nombre, y confirmá con tu apellido materno.</p>
+    <select id="select-curso-vendedor">
+      <option value="">Cargando cursos...</option>
+    </select>
+    <select id="select-alumno-vendedor" disabled>
+      <option value="">Elegí primero un curso</option>
+    </select>
+    <input type="password" id="input-apellido-materno" placeholder="Apellido materno" autocomplete="off">
     <button id="btn-entrar-vendedor" class="btn btn-primario btn-grande">Entrar</button>
     <button id="btn-volver-rol-1" class="btn">Volver</button>
     <p id="login-error-vendedor" class="error oculto"></p>
@@ -65,6 +70,7 @@
     <button class="tab" data-tab="ventas-dia" data-rol="vendedor">🧾 Ventas del día</button>
     <button class="tab" data-tab="productos" data-rol="admin">📦 Productos</button>
     <button class="tab" data-tab="resumen" data-rol="admin">📊 Resumen</button>
+    <button class="tab" data-tab="recaudacion" data-rol="admin">💰 Recaudación</button>
   </nav>
 
   <!-- ---------- TAB: VENTA ---------- -->
@@ -155,6 +161,14 @@
         <div class="resumen-card-valor" id="resumen-monto">-</div>
         <div class="resumen-card-label">Monto total sin usar</div>
       </div>
+    </div>
+  </section>
+
+  <!-- ---------- TAB: RECAUDACIÓN (admin) ---------- -->
+  <section id="tab-recaudacion" class="tab-contenido">
+    <button id="btn-actualizar-recaudacion" class="btn">🔄 Actualizar</button>
+    <div id="tabla-recaudacion-wrap" class="tabla-recaudacion-wrap">
+      <p class="vacio">Cargando...</p>
     </div>
   </section>
 

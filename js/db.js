@@ -15,6 +15,12 @@ var DB = (function () {
   var COLA_VENTAS_KEY = 'kiosco_cola_ventas_v1';
   var TIMEOUT_MS = 9000; // si no responde en este tiempo, se trata como sin conexión
 
+  // Credenciales del alumno actualmente logueado como Vendedor ({fila,
+  // apellidoMaterno}). Se adjuntan a cada acción de vendedor para que el
+  // backend las revalide. Se completa con establecerAlumno() al iniciar
+  // sesión (o al restaurar la sesión guardada).
+  var alumnoActual = null;
+
   function urlConfigurada() {
     return CONFIG.URL_APPS_SCRIPT && CONFIG.URL_APPS_SCRIPT.indexOf('https://') === 0;
   }
@@ -161,14 +167,25 @@ var DB = (function () {
       return llamarBackend('eliminarProducto', { id: id, claveAdmin: CONFIG.CLAVE_ADMIN });
     },
 
-    // Estas acciones son sólo de Vendedor: mandan la clave de vendedor para
-    // que el backend la valide.
+    // Credenciales del alumno logueado como Vendedor (ver arriba). Hay que
+    // llamarla apenas se loguea (o al restaurar sesión), antes de usar
+    // cualquiera de las acciones de vendedor de más abajo.
+    establecerAlumno: function (alumno) {
+      alumnoActual = alumno;
+    },
+
+    // Estas acciones son sólo de Vendedor: mandan las credenciales del
+    // alumno logueado para que el backend las revalide contra la hoja
+    // Alumno (no hay clave compartida de vendedor).
     registrarVenta: function (venta) {
-      return llamarBackend('registrarVenta', Object.assign({ claveVendedor: CONFIG.CLAVE_VENDEDOR }, venta));
+      // La venta ya trae venta.alumno adjunto desde que se armó en app.js
+      // (así una venta encolada sin señal conserva las credenciales de
+      // quien la hizo, aunque después inicie sesión otra persona).
+      return llamarBackend('registrarVenta', venta);
     },
 
     buscarTransferencias: function (texto) {
-      return llamarBackend('buscarTransferencias', { texto: texto, claveVendedor: CONFIG.CLAVE_VENDEDOR });
+      return llamarBackend('buscarTransferencias', { texto: texto, alumno: alumnoActual });
     },
 
     resumenTransferencias: function () {
@@ -176,19 +193,41 @@ var DB = (function () {
     },
 
     auditoriaDelDia: function (usuario) {
-      return llamarBackend('auditoriaDelDia', { usuario: usuario, claveVendedor: CONFIG.CLAVE_VENDEDOR });
+      return llamarBackend('auditoriaDelDia', { usuario: usuario, alumno: alumnoActual });
     },
 
     ventasDelDia: function () {
-      return llamarBackend('ventasDelDia', { claveVendedor: CONFIG.CLAVE_VENDEDOR });
+      return llamarBackend('ventasDelDia', { alumno: alumnoActual });
     },
 
     obtenerTransferenciasSinUsar: function () {
-      return llamarBackend('obtenerTransferenciasSinUsar', { claveVendedor: CONFIG.CLAVE_VENDEDOR })
+      return llamarBackend('obtenerTransferenciasSinUsar', { alumno: alumnoActual })
         .then(function (json) {
           guardarCacheTransferencias(json.transferencias || []);
           return json.transferencias || [];
         });
+    },
+
+    // Lista de alumnos (curso, nombre, apellido paterno) para poblar los
+    // selectores del login de Vendedor. No requiere sesión previa.
+    obtenerAlumnos: function () {
+      return llamarBackend('obtenerAlumnos').then(function (json) {
+        return json.alumnos || [];
+      });
+    },
+
+    // Login de Vendedor: valida el alumno elegido contra su Apellido
+    // Materno. Devuelve { usuario, curso } si es correcto (rechaza con el
+    // error real si no).
+    iniciarSesionAlumno: function (fila, apellidoMaterno) {
+      return llamarBackend('iniciarSesionAlumno', { alumno: { fila: fila, apellidoMaterno: apellidoMaterno } });
+    },
+
+    // Sólo Administrador: recaudación total por vendedor y por día,
+    // separando efectivo de transferencia.
+    recaudacionPorVendedorYDia: function () {
+      return llamarBackend('recaudacionPorVendedorYDia', { claveAdmin: CONFIG.CLAVE_ADMIN })
+        .then(function (json) { return json.recaudacion || []; });
     },
 
     // Busca en la copia guardada localmente (para cuando no hay señal).
@@ -231,7 +270,10 @@ var DB = (function () {
         var ventaSinIdLocal = Object.assign({}, venta);
         delete ventaSinIdLocal.idLocal;
 
-        return llamarBackend('registrarVenta', Object.assign({ claveVendedor: CONFIG.CLAVE_VENDEDOR }, ventaSinIdLocal))
+        // ventaSinIdLocal ya trae .alumno (se guardó junto con la venta al
+        // encolarla), así que se revalida con las credenciales de quien la
+        // hizo en su momento, no con la sesión actual.
+        return llamarBackend('registrarVenta', ventaSinIdLocal)
           .then(function (respuesta) {
             quitarDeCola(venta.idLocal);
             sincronizadas++;

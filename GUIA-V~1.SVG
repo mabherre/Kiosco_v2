@@ -1,0 +1,58 @@
+<svg viewBox="0 0 640 1210" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Calibri, Arial, sans-serif">
+  <title>Guía visual paso a paso — Vendedor</title>
+  <desc>Seis pasos ilustrados para registrar una venta como Vendedor: iniciar sesión, elegir productos, revisar el carrito, elegir el tipo de pago, registrar la venta y entregar el comprobante.</desc>
+  <defs>
+    <marker id="arrowG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="640" height="1210" fill="#ffffff"/>
+
+  <text x="320" y="34" text-anchor="middle" font-size="24" font-weight="700" fill="#12233d">Guía visual — Vendedor</text>
+  <text x="320" y="56" text-anchor="middle" font-size="14" fill="#666666">Cómo registrar una venta, paso a paso</text>
+
+  <line x1="70" y1="182" x2="70" y2="1068" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="1 10" stroke-linecap="round"/>
+
+  <circle cx="70" cy="150" r="32" fill="#ffffff" stroke="#1e3a5f" stroke-width="3"/>
+  <text x="70" y="159" text-anchor="middle" font-size="24" font-weight="700" fill="#1e3a5f">1</text>
+  <rect x="140" y="80" width="440" height="140" rx="14" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="170" y="118" font-size="18" font-weight="700" fill="#12233d">🔑 Iniciar sesión</text>
+  <text x="170" y="145" font-size="14" fill="#666666">Elegir "Vendedor" e ingresar la</text>
+  <text x="170" y="165" font-size="14" fill="#666666">clave y el nombre correspondientes</text>
+
+  <circle cx="70" cy="340" r="32" fill="#ffffff" stroke="#1e3a5f" stroke-width="3"/>
+  <text x="70" y="349" text-anchor="middle" font-size="24" font-weight="700" fill="#1e3a5f">2</text>
+  <rect x="140" y="270" width="440" height="140" rx="14" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="170" y="308" font-size="18" font-weight="700" fill="#12233d">🛒 Elegir productos</text>
+  <text x="170" y="335" font-size="14" fill="#666666">Tocar "+" o "−" sobre cada producto</text>
+  <text x="170" y="355" font-size="14" fill="#666666">en la grilla de la pantalla Vender</text>
+
+  <circle cx="70" cy="530" r="32" fill="#ffffff" stroke="#1e3a5f" stroke-width="3"/>
+  <text x="70" y="539" text-anchor="middle" font-size="24" font-weight="700" fill="#1e3a5f">3</text>
+  <rect x="140" y="460" width="440" height="140" rx="14" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="170" y="498" font-size="18" font-weight="700" fill="#12233d">🧾 Revisar el carrito</text>
+  <text x="170" y="525" font-size="14" fill="#666666">Confirmar las cantidades y el</text>
+  <text x="170" y="545" font-size="14" fill="#666666">total antes de continuar</text>
+
+  <circle cx="70" cy="720" r="32" fill="#ffffff" stroke="#1e3a5f" stroke-width="3"/>
+  <text x="70" y="729" text-anchor="middle" font-size="24" font-weight="700" fill="#1e3a5f">4</text>
+  <rect x="140" y="650" width="440" height="140" rx="14" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="170" y="688" font-size="18" font-weight="700" fill="#12233d">💳 Elegir el tipo de pago</text>
+  <text x="170" y="715" font-size="14" fill="#666666">Efectivo (por defecto) o Transferencia</text>
+  <text x="170" y="735" font-size="14" fill="#666666">(se elige solo al usar "Usar")</text>
+
+  <circle cx="70" cy="910" r="32" fill="#ffffff" stroke="#1e3a5f" stroke-width="3"/>
+  <text x="70" y="919" text-anchor="middle" font-size="24" font-weight="700" fill="#1e3a5f">5</text>
+  <rect x="140" y="840" width="440" height="140" rx="14" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="170" y="878" font-size="18" font-weight="700" fill="#12233d">✅ Registrar la venta</text>
+  <text x="170" y="905" font-size="14" fill="#666666">Tocar el botón "Registrar venta"</text>
+  <text x="170" y="925" font-size="14" fill="#666666">para guardarla</text>
+
+  <circle cx="70" cy="1100" r="32" fill="#ffffff" stroke="#1e3a5f" stroke-width="3"/>
+  <text x="70" y="1109" text-anchor="middle" font-size="24" font-weight="700" fill="#1e3a5f">6</text>
+  <rect x="140" y="1030" width="440" height="140" rx="14" fill="#ffffff" stroke="#dcdfdd" stroke-width="1.5"/>
+  <text x="170" y="1068" font-size="18" font-weight="700" fill="#12233d">🖨️ Entregar el comprobante</text>
+  <text x="170" y="1095" font-size="14" fill="#666666">Imprimir por Bluetooth o compartir</text>
+  <text x="170" y="1115" font-size="14" fill="#666666">como imagen (ej. Fun Print)</text>
+</svg>
