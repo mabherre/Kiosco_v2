@@ -117,7 +117,7 @@
     var selectAlumno = $('select-alumno-vendedor');
     selectCurso.innerHTML = '<option value="">Cargando cursos...</option>';
     selectCurso.disabled = true;
-    selectAlumno.innerHTML = '<option value="">Elegí primero un curso</option>';
+    selectAlumno.innerHTML = '<option value="">Seleccionar primero un curso</option>';
     selectAlumno.disabled = true;
     DB.obtenerAlumnos()
       .then(function (alumnos) {
@@ -127,7 +127,7 @@
           if (a.curso && cursos.indexOf(a.curso) === -1) cursos.push(a.curso);
         });
         cursos.sort();
-        selectCurso.innerHTML = '<option value="">Elegí tu curso</option>' +
+        selectCurso.innerHTML = '<option value="">Seleccionar un curso</option>' +
           cursos.map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
         selectCurso.disabled = false;
       })
@@ -141,14 +141,14 @@
     var curso = this.value;
     var selectAlumno = $('select-alumno-vendedor');
     if (!curso) {
-      selectAlumno.innerHTML = '<option value="">Elegí primero un curso</option>';
+      selectAlumno.innerHTML = '<option value="">Seleccionar primero un curso</option>';
       selectAlumno.disabled = true;
       return;
     }
     var alumnosDelCurso = estado.alumnosDisponibles
       .filter(function (a) { return a.curso === curso; })
       .sort(function (a, b) { return (a.nombre + a.apellidoPaterno).localeCompare(b.nombre + b.apellidoPaterno); });
-    selectAlumno.innerHTML = '<option value="">Elegí tu nombre</option>' +
+    selectAlumno.innerHTML = '<option value="">Seleccionar un nombre</option>' +
       alumnosDelCurso.map(function (a) {
         return '<option value="' + a.fila + '">' + escapeHtml(a.nombre + ' ' + a.apellidoPaterno) + '</option>';
       }).join('');
@@ -164,17 +164,17 @@
   $('btn-entrar-vendedor').addEventListener('click', function () {
     $('login-error-vendedor').classList.add('oculto');
     if (!$('select-curso-vendedor').value) {
-      mostrarErrorVendedor('Elegí tu curso.');
+      mostrarErrorVendedor('Seleccionar un curso.');
       return;
     }
     var fila = Number($('select-alumno-vendedor').value);
     if (!fila) {
-      mostrarErrorVendedor('Elegí tu nombre de la lista.');
+      mostrarErrorVendedor('Seleccionar un nombre de la lista.');
       return;
     }
     var apellidoMaterno = $('input-apellido-materno').value.trim();
     if (!apellidoMaterno) {
-      mostrarErrorVendedor('Ingresá tu apellido materno.');
+      mostrarErrorVendedor('Ingresar el apellido materno.');
       return;
     }
     mostrarCarga('Verificando...');
@@ -203,7 +203,7 @@
       return;
     }
     if (!nombre) {
-      $('login-error-admin').textContent = 'Ingresá tu nombre para continuar.';
+      $('login-error-admin').textContent = 'Ingresar el nombre para continuar.';
       $('login-error-admin').classList.remove('oculto');
       return;
     }
@@ -504,7 +504,7 @@
 
   $('btn-conectar-impresora').addEventListener('click', function () {
     if (!Impresora.soportado()) {
-      toast('Este navegador no soporta Bluetooth. Usá Chrome en Android.', true);
+      toast('Este navegador no soporta Bluetooth. Usar Chrome en Android.', true);
       return;
     }
     mostrarCarga('Buscando impresora...');
@@ -763,7 +763,7 @@
         var cont = $('auditoria-productos');
         var productos = resp.productos || [];
         if (!productos.length) {
-          cont.innerHTML = '<p class="vacio">Todavía no hay ventas tuyas hoy.</p>';
+          cont.innerHTML = '<p class="vacio">Todavía no se registraron ventas propias hoy.</p>';
           return;
         }
         cont.innerHTML = productos.map(function (p) {
