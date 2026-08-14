@@ -17,7 +17,7 @@
   <div class="login-box" id="login-paso-rol">
     <img src="logo-kiosco.png" alt="Logo" class="logo-inicio">
     <h1>🏪 Kiosco</h1>
-    <p>¿Cómo vas a ingresar?</p>
+    <p>Seleccionar el tipo de acceso.</p>
     <button id="btn-rol-vendedor" class="btn btn-primario btn-grande">🛒 Vendedor</button>
     <button id="btn-rol-admin" class="btn btn-grande">🔑 Administrador</button>
   </div>
@@ -25,12 +25,12 @@
   <!-- Paso 2a: curso + alumno + apellido materno (vendedor) -->
   <div class="login-box oculto" id="login-paso-vendedor">
     <h1>🏪 Kiosco</h1>
-    <p>Elegí tu curso y tu nombre, y confirmá con tu apellido materno.</p>
+    <p>Seleccionar el curso y el nombre, y confirmar con el apellido materno.</p>
     <select id="select-curso-vendedor">
       <option value="">Cargando cursos...</option>
     </select>
     <select id="select-alumno-vendedor" disabled>
-      <option value="">Elegí primero un curso</option>
+      <option value="">Seleccionar primero un curso</option>
     </select>
     <input type="password" id="input-apellido-materno" placeholder="Apellido materno" autocomplete="off">
     <button id="btn-entrar-vendedor" class="btn btn-primario btn-grande">Entrar</button>
@@ -41,9 +41,9 @@
   <!-- Paso 2b: clave + nombre (administrador) -->
   <div class="login-box oculto" id="login-paso-admin">
     <h1>🏪 Kiosco</h1>
-    <p>Ingresá la clave de administrador y tu nombre.</p>
+    <p>Ingresar la clave de administrador y el nombre.</p>
     <input type="password" id="input-clave-admin" placeholder="Clave" autocomplete="off">
-    <input type="text" id="input-nombre-admin" placeholder="Tu nombre" autocomplete="off">
+    <input type="text" id="input-nombre-admin" placeholder="Nombre" autocomplete="off">
     <button id="btn-entrar-admin" class="btn btn-primario btn-grande">Entrar</button>
     <button id="btn-volver-rol-2" class="btn">Volver</button>
     <p id="login-error-admin" class="error oculto"></p>
@@ -118,7 +118,7 @@
     </div>
     <h3>Detalle por producto (hoy)</h3>
     <div id="auditoria-productos" class="lista-auditoria-productos">
-      <p class="vacio">Todavía no hay ventas tuyas hoy.</p>
+      <p class="vacio">Todavía no se registraron ventas propias hoy.</p>
     </div>
   </section>
 
@@ -137,7 +137,7 @@
       <button id="btn-buscar-transferencia" class="btn btn-primario">Buscar</button>
     </div>
     <div id="resultados-transferencias" class="lista-transferencias">
-      <p class="vacio">Buscá por RUN o nombre para ver transferencias sin usar.</p>
+      <p class="vacio">Buscar por RUN o nombre para ver transferencias sin usar.</p>
     </div>
   </section>
 
