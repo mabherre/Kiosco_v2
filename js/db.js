@@ -13,7 +13,10 @@ var DB = (function () {
   var CACHE_PRODUCTOS_KEY = 'kiosco_productos_cache_v1';
   var CACHE_TRANSFERENCIAS_KEY = 'kiosco_transferencias_cache_v1';
   var COLA_VENTAS_KEY = 'kiosco_cola_ventas_v1';
-  var TIMEOUT_MS = 9000; // si no responde en este tiempo, se trata como sin conexión
+  var TIMEOUT_MS = 20000; // si no responde en este tiempo, se trata como sin conexión
+  // (Apps Script a veces tarda varios segundos en responder, sobre todo con
+  // el servidor "frío"; un límite muy corto marcaba como error pedidos que
+  // en realidad iban a terminar bien.)
 
   // Credenciales del alumno actualmente logueado como Vendedor ({fila,
   // apellidoMaterno}). Se adjuntan a cada acción de vendedor para que el
