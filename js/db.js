@@ -199,8 +199,8 @@ var DB = (function () {
       return llamarBackend('auditoriaDelDia', { usuario: usuario, alumno: alumnoActual });
     },
 
-    ventasDelDia: function () {
-      return llamarBackend('ventasDelDia', { alumno: alumnoActual });
+    ventasDelDia: function (usuario) {
+      return llamarBackend('ventasDelDia', { usuario: usuario, alumno: alumnoActual });
     },
 
     obtenerTransferenciasSinUsar: function () {

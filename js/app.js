@@ -782,12 +782,12 @@
   /* ---------- Ventas del día (vendedor) ---------- */
   function cargarVentasDelDia() {
     mostrarCarga('Cargando ventas del día...');
-    DB.ventasDelDia()
+    DB.ventasDelDia(estado.usuario)
       .then(function (resp) {
         var cont = $('lista-ventas-dia');
         var ventas = resp.ventas || [];
         if (!ventas.length) {
-          cont.innerHTML = '<p class="vacio">Todavía no hay ventas hoy.</p>';
+          cont.innerHTML = '<p class="vacio">Todavía no se registraron ventas propias hoy.</p>';
           return;
         }
         cont.innerHTML = ventas.map(function (v) {
