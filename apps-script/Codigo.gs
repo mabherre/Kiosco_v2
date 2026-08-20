@@ -683,6 +683,7 @@ function ventasDelDia(data) {
   var idxUsuario = indiceEnLista_(encabezadosVentas, ['Usuario']);
   var idxTotal = indiceEnLista_(encabezadosVentas, ['Total']);
   var idxTipoVenta = indiceEnLista_(encabezadosVentas, ['Tipo_venta']);
+  var idxNumeroBoleta = indiceEnLista_(encabezadosVentas, ['N° Boleta']);
 
   var hoy = new Date();
 
@@ -730,6 +731,7 @@ function ventasDelDia(data) {
       usuario: idxUsuario > 0 ? String(fila[idxUsuario - 1] || '') : '',
       total: idxTotal > 0 ? (Number(fila[idxTotal - 1]) || 0) : 0,
       tipoVenta: idxTipoVenta > 0 ? String(fila[idxTipoVenta - 1] || 'efectivo').toLowerCase() : 'efectivo',
+      numeroBoleta: idxNumeroBoleta > 0 ? (fila[idxNumeroBoleta - 1] || '') : '',
       productos: detallePorVenta[idVenta] || []
     });
   }

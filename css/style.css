@@ -386,6 +386,14 @@ table.tabla-recaudacion tfoot td {
 }
 .venta-dia-item .hora { font-weight: 700; }
 .venta-dia-item .vendedor { color: #666; font-size: 13px; }
+.venta-dia-item .boleta {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  background: var(--gris-fondo);
+  padding: 2px 9px;
+  border-radius: 999px;
+}
 .venta-dia-item .tipo {
   font-size: 12px;
   font-weight: 600;
@@ -407,6 +415,10 @@ table.tabla-recaudacion tfoot td {
   display: flex;
   justify-content: space-between;
   padding: 2px 0;
+}
+.btn-reimprimir-venta {
+  margin-top: 10px;
+  width: 100%;
 }
 
 /* ---------- Modal ---------- */

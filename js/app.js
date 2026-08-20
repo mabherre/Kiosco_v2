@@ -865,17 +865,22 @@
   $('btn-actualizar-auditoria').addEventListener('click', cargarAuditoria);
 
   /* ---------- Ventas del día (vendedor) ---------- */
+  // Se guarda acá la última lista cargada para poder reimprimir cualquiera
+  // de esas ventas con un toque directo del usuario (ver más abajo).
+  var ventasDelDiaCache = [];
+
   function cargarVentasDelDia() {
     mostrarCarga('Cargando ventas del día...');
     DB.ventasDelDia(estado.usuario)
       .then(function (resp) {
         var cont = $('lista-ventas-dia');
         var ventas = resp.ventas || [];
+        ventasDelDiaCache = ventas;
         if (!ventas.length) {
           cont.innerHTML = '<p class="vacio">Todavía no se registraron ventas propias hoy.</p>';
           return;
         }
-        cont.innerHTML = ventas.map(function (v) {
+        cont.innerHTML = ventas.map(function (v, i) {
           var hora = new Date(v.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           var tipoTexto = v.tipoVenta === 'transferencia' ? '💳 Transferencia' : '💵 Efectivo';
           var productosHtml = (v.productos || []).map(function (p) {
@@ -888,10 +893,12 @@
             '<div class="cabecera">' +
             '<span class="hora">' + hora + '</span>' +
             '<span class="vendedor">' + escapeHtml(v.usuario) + '</span>' +
+            (v.numeroBoleta ? '<span class="boleta">Boleta N° ' + escapeHtml(String(v.numeroBoleta)) + '</span>' : '') +
             '<span class="tipo ' + v.tipoVenta + '">' + tipoTexto + '</span>' +
             '<span class="total">' + formatoMoneda(v.total) + '</span>' +
             '</div>' +
             '<div class="productos">' + (productosHtml || '<span>Sin detalle de productos.</span>') + '</div>' +
+            '<button class="btn btn-chico btn-reimprimir-venta" data-idx="' + i + '">🖨️ Reimprimir boleta</button>' +
             '</div>';
         }).join('');
       })
@@ -900,6 +907,38 @@
   }
 
   $('btn-actualizar-ventas-dia').addEventListener('click', cargarVentasDelDia);
+
+  // Convierte una venta tal como la devuelve ventasDelDia() (campo
+  // "productos", con "nombre") al formato que espera printer.js (campo
+  // "items", con "productoNombre"), para poder reusar el mismo flujo de
+  // impresión que la venta recién hecha.
+  function ventaParaReimprimir_(v) {
+    return {
+      usuario: v.usuario,
+      total: v.total,
+      fecha: v.fecha,
+      numeroBoleta: v.numeroBoleta,
+      items: (v.productos || []).map(function (p) {
+        return {
+          productoNombre: p.nombre,
+          cantidad: p.cantidad,
+          precioUnitario: p.precioUnitario,
+          subtotal: p.subtotal
+        };
+      })
+    };
+  }
+
+  // Un solo listener (delegado) para todos los botones "Reimprimir boleta"
+  // de la lista, en vez de uno por tarjeta (la lista se vuelve a armar cada
+  // vez que se actualiza).
+  $('lista-ventas-dia').addEventListener('click', function (e) {
+    var btn = e.target.closest('.btn-reimprimir-venta');
+    if (!btn) return;
+    var venta = ventasDelDiaCache[Number(btn.dataset.idx)];
+    if (!venta) return;
+    imprimirSiCorresponde(ventaParaReimprimir_(venta));
+  });
 
   /* ---------- Recaudación por vendedor y día (admin) ---------- */
   function cargarRecaudacion() {
