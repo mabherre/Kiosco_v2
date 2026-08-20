@@ -226,6 +226,14 @@ var DB = (function () {
       return llamarBackend('iniciarSesionAlumno', { alumno: { fila: fila, apellidoMaterno: apellidoMaterno } });
     },
 
+    // Sólo lectura: próximo N° de boleta de ESE vendedor hoy, según el
+    // servidor. Se usa al iniciar sesión (si hay señal) para poner al día el
+    // contador local que permite seguir numerando boletas sin conexión.
+    proximoNumeroBoleta: function (usuario) {
+      return llamarBackend('proximoNumeroBoleta', { usuario: usuario, alumno: alumnoActual })
+        .then(function (json) { return json.numeroBoleta; });
+    },
+
     // Sólo Administrador: recaudación total por vendedor y por día,
     // separando efectivo de transferencia.
     recaudacionPorVendedorYDia: function () {

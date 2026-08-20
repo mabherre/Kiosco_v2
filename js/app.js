@@ -89,7 +89,13 @@
     actualizarBadgePendientes();
     actualizarBadgeImpresora();
     intentarSincronizar(true);
-    if (rol === 'vendedor') refrescarCacheTransferencias();
+    if (rol === 'vendedor') {
+      refrescarCacheTransferencias();
+      // Si hay señal en este momento, se pone al día el contador local de
+      // N° de boleta (ver más abajo), para que arranque en el número real
+      // en vez de siempre desde cero.
+      sincronizarContadorBoletaLocal_(nombre);
+    }
   }
 
   // Paso 1: elegir rol
@@ -349,6 +355,12 @@
     if (!items.length) return;
     var total = items.reduce(function (acc, it) { return acc + it.subtotal; }, 0);
     var venta = {
+      // Identificador único generado acá mismo, una sola vez por venta (se
+      // reintente o no el envío). Si el pedido llega al servidor pero la
+      // respuesta se pierde por corte de señal, la app cree que falló y la
+      // vuelve a mandar más tarde: con este id, el servidor reconoce que ya
+      // la había recibido y no la registra dos veces.
+      idCliente: 'v-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10),
       usuario: estado.usuario,
       items: items,
       total: total,
@@ -364,16 +376,26 @@
       venta.transferenciaFila = estado.transferenciaSeleccionada.fila;
     }
 
+    // Se calcula ya mismo el N° de boleta "provisorio" de esta venta (ver
+    // sección más abajo), se use o no: así el contador local queda al día
+    // para la próxima venta, se registre esta con o sin señal.
+    var numeroBoletaLocal = siguienteBoletaLocal_(estado.usuario);
+
     mostrarCarga('Registrando venta...');
     DB.registrarVenta(venta)
       .then(function (respuesta) {
         venta.ventaId = respuesta.ventaId;
+        venta.numeroBoleta = respuesta.numeroBoleta; // número real, confirmado por el servidor
         finalizarVentaExitosa(venta, false);
       })
       .catch(function (err) {
         if (err.esErrorDeRed) {
           // Sin señal: la venta queda guardada en el celular y se manda
-          // sola cuando vuelva la conexión. No se pierde nada.
+          // sola cuando vuelva la conexión. No se pierde nada. Se usa el
+          // número de boleta provisorio para poder igual imprimir el
+          // ticket; el número definitivo queda en la hoja al sincronizar.
+          venta.numeroBoleta = numeroBoletaLocal;
+          venta.numeroBoletaProvisorio = true;
           DB.encolarVenta(venta);
           actualizarBadgePendientes();
           finalizarVentaExitosa(venta, true);
@@ -405,8 +427,11 @@
   function mostrarVentaExito(venta, pendienteDeSincronizar) {
     ultimaVentaRegistrada = venta;
     var texto = 'Vendedor: ' + venta.usuario + ' — Total: ' + formatoMoneda(venta.total);
+    if (venta.numeroBoleta) {
+      texto += ' — Boleta N° ' + venta.numeroBoleta + (venta.numeroBoletaProvisorio ? ' (provisoria)' : '');
+    }
     if (pendienteDeSincronizar) {
-      texto += ' — ⚠️ Guardada en el celular, sin señal todavía. Se va a mandar sola a la hoja apenas haya conexión.';
+      texto += ' — ⚠️ Guardada en el celular, sin señal todavía. Se va a mandar sola a la hoja apenas haya conexión (el N° de boleta impreso es provisorio; el definitivo queda en la hoja al sincronizar).';
     }
     $('venta-exito-resumen').textContent = texto;
     $('modal-venta-exito').classList.remove('oculto');
@@ -448,6 +473,66 @@
         });
     }
     toast('Este navegador no permite compartir el comprobante automáticamente.', true);
+  }
+
+  /* ---------- N° de boleta local (para poder imprimirlo sin conexión) ----------
+   * El N° de boleta "real" lo asigna siempre el servidor (correlativo por
+   * vendedor y por día). Pero si no hay señal en el momento de vender, no se
+   * puede consultar al servidor y el ticket quedaría sin número. Para eso se
+   * lleva acá, en el celular, un contador provisorio por vendedor y por día:
+   * en la enorme mayoría de los casos (un vendedor, un celular) termina
+   * coincidiendo con el número real. Si el mismo vendedor llegara a usar más
+   * de un celular el mismo día, los números provisorios de cada uno podrían
+   * no coincidir exactamente con los que finalmente queden en la hoja; el
+   * número de la hoja es siempre el que vale para el control oficial.
+   */
+  var BOLETA_LOCAL_KEY = 'kiosco_boleta_local_v1';
+
+  function fechaLocalHoy_() {
+    var d = new Date();
+    function dosDigitos(n) { return n < 10 ? '0' + n : '' + n; }
+    return d.getFullYear() + '-' + dosDigitos(d.getMonth() + 1) + '-' + dosDigitos(d.getDate());
+  }
+
+  function leerContadoresBoletaLocal_() {
+    try { return JSON.parse(localStorage.getItem(BOLETA_LOCAL_KEY) || '{}'); }
+    catch (e) { return {}; }
+  }
+
+  function guardarContadoresBoletaLocal_(mapa) {
+    try { localStorage.setItem(BOLETA_LOCAL_KEY, JSON.stringify(mapa)); } catch (e) {}
+  }
+
+  // Se llama una vez por cada venta que se intenta registrar (tenga señal o
+  // no en ese momento): suma 1 al contador local de ESE vendedor hoy y
+  // devuelve el número resultante, para tenerlo listo por si hace falta
+  // imprimirlo sin haber podido consultar al servidor.
+  function siguienteBoletaLocal_(usuario) {
+    var mapa = leerContadoresBoletaLocal_();
+    var clave = fechaLocalHoy_() + '|' + usuario;
+    var siguiente = (mapa[clave] || 0) + 1;
+    mapa[clave] = siguiente;
+    guardarContadoresBoletaLocal_(mapa);
+    return siguiente;
+  }
+
+  // Al entrar como vendedor (o restaurar la sesión), si hay señal en ese
+  // momento, se le pregunta al servidor en qué número real va ese vendedor
+  // hoy, y se pone al día el contador local con ese valor. Así, si las
+  // primeras ventas del día se hacen sin conexión, el número provisorio
+  // arranca donde corresponde en vez de siempre desde cero.
+  function sincronizarContadorBoletaLocal_(usuario) {
+    DB.proximoNumeroBoleta(usuario)
+      .then(function (numeroReal) {
+        var mapa = leerContadoresBoletaLocal_();
+        var clave = fechaLocalHoy_() + '|' + usuario;
+        // Sólo se corrige hacia arriba: si el contador local ya iba más
+        // adelantado (por ventas hechas sin señal que todavía no
+        // sincronizan), no se lo pisa hacia atrás.
+        mapa[clave] = Math.max(mapa[clave] || 0, numeroReal - 1);
+        guardarContadoresBoletaLocal_(mapa);
+      })
+      .catch(function () { /* sin conexión: se sigue con lo que haya guardado local */ });
   }
 
   /* ---------- Sincronización de ventas pendientes ---------- */

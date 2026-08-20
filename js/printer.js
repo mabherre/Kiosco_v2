@@ -109,6 +109,9 @@ var Impresora = (function () {
     negrita(false);
     linea(new Date(venta.fecha || Date.now()).toLocaleString());
     linea('Vendedor: ' + venta.usuario);
+    if (venta.numeroBoleta) {
+      linea('Boleta Nro: ' + venta.numeroBoleta + (venta.numeroBoletaProvisorio ? ' (provisoria)' : ''));
+    }
     linea('--------------------------------');
     centrar(false);
 
@@ -171,6 +174,9 @@ var Impresora = (function () {
     lineas.push({ texto: CONFIG.NOMBRE_KIOSCO || 'Kiosco', negrita: true, align: 'center' });
     lineas.push({ texto: new Date(venta.fecha || Date.now()).toLocaleString(), align: 'center' });
     lineas.push({ texto: 'Vendedor: ' + venta.usuario, align: 'left' });
+    if (venta.numeroBoleta) {
+      lineas.push({ texto: 'Boleta Nro: ' + venta.numeroBoleta + (venta.numeroBoletaProvisorio ? ' (provisoria)' : ''), align: 'left' });
+    }
     lineas.push({ texto: '--------------------------------', align: 'left' });
     venta.items.forEach(function (it) {
       lineas.push({ texto: it.cantidad + ' x ' + it.productoNombre, align: 'left' });

@@ -33,7 +33,7 @@ var ACCIONES_SOLO_ADMIN = ['agregarProducto', 'actualizarProducto', 'eliminarPro
 // Acciones que sólo puede hacer un Vendedor. En vez de una clave
 // compartida, cada pedido tiene que traer data.alumno = {fila, apellidoMaterno}
 // y se valida contra la hoja Alumno (ver validarAlumno_).
-var ACCIONES_SOLO_VENDEDOR = ['registrarVenta', 'buscarTransferencias', 'obtenerTransferenciasSinUsar', 'auditoriaDelDia', 'ventasDelDia'];
+var ACCIONES_SOLO_VENDEDOR = ['registrarVenta', 'buscarTransferencias', 'obtenerTransferenciasSinUsar', 'auditoriaDelDia', 'ventasDelDia', 'proximoNumeroBoleta'];
 
 // Hoja externa donde se registran las transferencias recibidas (abonos de
 // clientes). No es la misma hoja que la del kiosco: se abre por ID.
@@ -55,6 +55,9 @@ function doGet(e) {
     }
     if (accion === 'ping') {
       return respond({ ok: true, mensaje: 'Backend Kiosco activo' });
+    }
+    if (accion === 'diagnosticoAlumnos') {
+      return respond({ ok: true, diagnostico: diagnosticoAlumnos_() });
     }
     return respond({ ok: false, error: 'Acción GET no soportada: ' + accion });
   } catch (err) {
@@ -119,7 +122,7 @@ function doPost(e) {
         resultado = auditoriaDelDia(data);
         break;
       case 'ventasDelDia':
-        resultado = ventasDelDia();
+        resultado = ventasDelDia(data);
         break;
       case 'obtenerAlumnos':
         resultado = obtenerAlumnos();
@@ -129,6 +132,9 @@ function doPost(e) {
         break;
       case 'recaudacionPorVendedorYDia':
         resultado = recaudacionPorVendedorYDia();
+        break;
+      case 'proximoNumeroBoleta':
+        resultado = proximoNumeroBoletaSugerido(data);
         break;
       default:
         return respond({ ok: false, error: 'Acción POST no reconocida: ' + accion });
@@ -178,8 +184,29 @@ function getDetalleSheet_() {
 }
 function getAlumnoSheet_() {
   // Esta pestaña ya la crea y completa la persona a cargo del kiosco (curso,
-  // nombre, apellido paterno y apellido materno de cada alumno). Si por
-  // algún motivo no existe todavía, se crea vacía con estos encabezados.
+  // nombre, apellido paterno y apellido materno de cada alumno). Se acepta
+  // tanto "Alumno" como "Alumnos" (singular o plural, sin importar
+  // mayúsculas) para no depender de un nombre exacto de pestaña: si se
+  // buscara solo "Alumno" y la pestaña real se llamara "Alumnos", el
+  // sistema no la encontraría y crearía otra vacía por separado.
+  //
+  // Si hay más de una pestaña candidata (por ejemplo, quedó una vacía de
+  // antes y otra con los datos reales), se usa la que tiene más filas: es
+  // la que realmente tiene contenido cargado.
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var nombresValidos = ['alumno', 'alumnos'];
+  var hojas = ss.getSheets();
+  var candidatas = [];
+  for (var i = 0; i < hojas.length; i++) {
+    if (nombresValidos.indexOf(hojas[i].getName().trim().toLowerCase()) !== -1) {
+      candidatas.push(hojas[i]);
+    }
+  }
+  if (candidatas.length > 0) {
+    candidatas.sort(function (a, b) { return b.getLastRow() - a.getLastRow(); });
+    return candidatas[0];
+  }
+  // No existe ninguna: se crea vacía para completarla a mano.
   return getSheet_('Alumno', ['Curso', 'Nombre', 'Apellido Paterno', 'Apellido Materno']);
 }
 
@@ -201,8 +228,9 @@ function siguienteId_(sheet) {
 // fila de encabezados. Así, si alguien reordena o agrega columnas a mano
 // en la hoja (como Tipo_venta), el código igual escribe en el lugar
 // correcto en vez de asumir una posición fija.
-function indiceColumna_(sheet, nombreEncabezado) {
-  var encabezados = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+function indiceColumna_(sheet, nombreEncabezado, filaEncabezado) {
+  filaEncabezado = filaEncabezado || 1;
+  var encabezados = sheet.getRange(filaEncabezado, 1, 1, sheet.getLastColumn()).getValues()[0];
   for (var i = 0; i < encabezados.length; i++) {
     if (String(encabezados[i]).trim().toLowerCase() === nombreEncabezado.trim().toLowerCase()) {
       return i + 1;
@@ -211,15 +239,162 @@ function indiceColumna_(sheet, nombreEncabezado) {
   return -1;
 }
 
+// Si la hoja no tiene una columna con ese nombre, la agrega al final (sin
+// tocar las columnas existentes). Se usa para que la columna "IDCliente" se
+// cree sola la primera vez, sin que el administrador tenga que agregarla a
+// mano en la hoja de cálculo.
+function agregarColumnaSiFalta_(sheet, nombreEncabezado) {
+  var idx = indiceColumna_(sheet, nombreEncabezado);
+  if (idx > 0) return idx;
+  var nuevaCol = sheet.getLastColumn() + 1;
+  sheet.getRange(1, nuevaCol).setValue(nombreEncabezado);
+  return nuevaCol;
+}
+
+// Busca, dentro de la columna IDCliente de la hoja Ventas, una fila que ya
+// tenga ese identificador (para no registrar dos veces la misma venta si el
+// celular la reintenta, por ejemplo porque la respuesta del servidor se
+// perdió por corte de señal la primera vez). Devuelve {ventaId, fecha} o
+// null si no la encuentra.
+function buscarVentaPorIdCliente_(sheet, idxIdCliente, idxNumeroBoleta, idCliente) {
+  var filasDeDatos = sheet.getLastRow() - 1;
+  if (filasDeDatos < 1) return null;
+
+  // Primero se lee sólo la columna IDCliente (una lectura liviana) para ver
+  // si esa venta ya existe. Sólo si la encuentra, se leen los demás datos de
+  // esa fila puntual.
+  var columnaIdCliente = sheet.getRange(2, idxIdCliente, filasDeDatos, 1).getValues();
+  for (var i = 0; i < columnaIdCliente.length; i++) {
+    var valorCelda = String(columnaIdCliente[i][0] || '');
+    if (valorCelda && valorCelda === String(idCliente)) {
+      var filaReal = i + 2;
+      var idxId = indiceColumna_(sheet, 'ID');
+      var idxFecha = indiceColumna_(sheet, 'Fecha');
+      var valoresId = idxId > 0 ? sheet.getRange(filaReal, idxId).getValue() : '';
+      var valoresFecha = idxFecha > 0 ? sheet.getRange(filaReal, idxFecha).getValue() : null;
+      var valoresBoleta = idxNumeroBoleta > 0 ? sheet.getRange(filaReal, idxNumeroBoleta).getValue() : '';
+      return {
+        ventaId: valoresId,
+        fecha: (valoresFecha instanceof Date) ? valoresFecha.toISOString() : new Date().toISOString(),
+        numeroBoleta: valoresBoleta
+      };
+    }
+  }
+  return null;
+}
+
+// Próximo número de boleta para ESE vendedor en el día de hoy (arranca en 1
+// cada día, como un talonario físico). Cuenta cuántas ventas de ese vendedor
+// ya hay hoy y usa el máximo + 1 (en vez de sólo contar filas), para que
+// autocorrija si alguna vez se borra o edita una fila a mano.
+function boletaSiguienteDelDia_(sheet, idxFecha, idxUsuario, idxNumeroBoleta, usuario, hoy) {
+  var filasDeDatos = sheet.getLastRow() - 1;
+  if (filasDeDatos < 1) return 1;
+
+  var valores = sheet.getRange(2, 1, filasDeDatos, sheet.getLastColumn()).getValues();
+  var maximo = 0;
+  for (var i = 0; i < valores.length; i++) {
+    var fila = valores[i];
+    var fechaFila = idxFecha > 0 ? fila[idxFecha - 1] : null;
+    if (!(fechaFila instanceof Date) || !esMismoDia_(fechaFila, hoy)) continue;
+    var usuarioFila = idxUsuario > 0 ? String(fila[idxUsuario - 1] || '') : '';
+    if (usuarioFila !== usuario) continue;
+    var n = idxNumeroBoleta > 0 ? Number(fila[idxNumeroBoleta - 1]) : 0;
+    if (!isNaN(n) && n > maximo) maximo = n;
+  }
+  return maximo + 1;
+}
+
+// Sólo lectura: dice cuál sería el próximo N° de boleta de ESE vendedor hoy,
+// sin registrar nada. La app la usa al iniciar sesión (si hay señal en ese
+// momento) para "poner al día" su contador local, y así poder seguir
+// numerando boletas de forma provisoria si más tarde se queda sin conexión.
+function proximoNumeroBoletaSugerido(data) {
+  var usuario = String(data.usuario || '');
+  var ventasSheet = getVentasSheet_();
+  var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
+  var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
+  var idxNumeroBoleta = indiceColumna_(ventasSheet, 'N° Boleta');
+  if (idxNumeroBoleta < 1) return { numeroBoleta: 1 };
+  return { numeroBoleta: boletaSiguienteDelDia_(ventasSheet, idxFecha, idxUsuario, idxNumeroBoleta, usuario, new Date()) };
+}
+
 // Igual que indiceColumna_, pero probando varios nombres posibles para el
 // mismo encabezado (por ejemplo, "Apellido Materno" o "Segundo Apellido").
 // Devuelve el índice del primero que encuentre.
-function indiceColumnaVarios_(sheet, nombresPosibles) {
+function indiceColumnaVarios_(sheet, nombresPosibles, filaEncabezado) {
   for (var i = 0; i < nombresPosibles.length; i++) {
-    var idx = indiceColumna_(sheet, nombresPosibles[i]);
+    var idx = indiceColumna_(sheet, nombresPosibles[i], filaEncabezado);
     if (idx > 0) return idx;
   }
   return -1;
+}
+
+// Lee la fila de encabezados UNA sola vez (una sola llamada a la hoja) para
+// poder buscar varias columnas sin repetir la lectura. Cada llamada a
+// getRange()/getValues() es una ida y vuelta a Google Sheets, y sumadas
+// hacían más lenta cada acción (por ejemplo, registrar una venta hacía 5
+// lecturas de encabezado seguidas). Se usa junto con indiceEnLista_.
+function leerEncabezados_(sheet, filaEncabezado) {
+  filaEncabezado = filaEncabezado || 1;
+  var valores = sheet.getRange(filaEncabezado, 1, 1, sheet.getLastColumn()).getValues()[0];
+  return valores.map(function (v) { return String(v || '').trim().toLowerCase(); });
+}
+
+// Busca el índice (1-based) de alguno de los nombres posibles dentro de un
+// arreglo de encabezados ya leído (sin volver a llamar a la hoja).
+function indiceEnLista_(encabezadosNormalizados, nombresPosibles) {
+  for (var i = 0; i < nombresPosibles.length; i++) {
+    var buscado = nombresPosibles[i].trim().toLowerCase();
+    var idx = encabezadosNormalizados.indexOf(buscado);
+    if (idx !== -1) return idx + 1;
+  }
+  return -1;
+}
+
+// Igual que encontrarFilaEncabezados_() + leerEncabezados_() juntas, pero
+// leyendo la hoja una sola vez (en vez de una lectura para ubicar la fila de
+// encabezados y otra para traer su contenido). Devuelve { fila, encabezados }.
+function datosEncabezado_(sheet, nombresEsperados) {
+  var maxFilas = Math.min(5, sheet.getLastRow());
+  if (maxFilas < 1) return { fila: 1, encabezados: [] };
+
+  var bloque = sheet.getRange(1, 1, maxFilas, sheet.getLastColumn()).getValues();
+  var normalizado = bloque.map(function (fila) {
+    return fila.map(function (v) { return String(v || '').trim().toLowerCase(); });
+  });
+  var nombresNormalizados = nombresEsperados.map(function (n) { return n.toLowerCase(); });
+
+  for (var i = 0; i < normalizado.length; i++) {
+    for (var j = 0; j < nombresNormalizados.length; j++) {
+      if (normalizado[i].indexOf(nombresNormalizados[j]) !== -1) {
+        return { fila: i + 1, encabezados: normalizado[i] };
+      }
+    }
+  }
+  return { fila: 1, encabezados: normalizado[0] || [] };
+}
+
+// Busca en cuál de las primeras filas de la hoja están realmente los
+// encabezados (por si hay un título arriba, como "Lista de Alumnos 2026").
+// Revisa las primeras 5 filas y se queda con la primera que contenga
+// alguno de los nombres esperados. Si no encuentra ninguna, asume que es
+// la fila 1 (comportamiento de antes).
+function encontrarFilaEncabezados_(sheet, nombresEsperados) {
+  var maxFilas = Math.min(5, sheet.getLastRow());
+  if (maxFilas < 1) return 1;
+  // Una sola lectura de las primeras filas (en vez de una lectura por fila).
+  var bloque = sheet.getRange(1, 1, maxFilas, sheet.getLastColumn()).getValues();
+  var nombresNormalizados = nombresEsperados.map(function (n) { return n.toLowerCase(); });
+  for (var fila = 0; fila < bloque.length; fila++) {
+    var textos = bloque[fila].map(function (v) { return String(v || '').trim().toLowerCase(); });
+    for (var j = 0; j < nombresNormalizados.length; j++) {
+      if (textos.indexOf(nombresNormalizados[j]) !== -1) {
+        return fila + 1;
+      }
+    }
+  }
+  return 1;
 }
 
 /* ---------------- Productos ---------------- */
@@ -316,30 +491,71 @@ function registrarVenta(data) {
   // que se sincroniza justo cuando se está guardando otra), sin este
   // bloqueo ambas podrían leer el mismo "último ID" antes de que la
   // primera termine de escribir, y quedar con el mismo número. El
-  // bloqueo obliga a que se procesen de a una por vez.
+  // bloqueo obliga a que se procesen de a una por vez. De paso, esto
+  // también hace que el número de boleta por vendedor (más abajo) sea
+  // seguro de calcular, sin que dos ventas casi simultáneas se lleven el
+  // mismo número.
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     var ventasSheet = getVentasSheet_();
     var detalleSheet = getDetalleSheet_();
+
+    // Se aseguran las columnas IDCliente y N° Boleta (se agregan solas la
+    // primera vez que hacen falta; no hay que crearlas a mano en la hoja).
+    var idxIdCliente = agregarColumnaSiFalta_(ventasSheet, 'IDCliente');
+    var idxNumeroBoleta = agregarColumnaSiFalta_(ventasSheet, 'N° Boleta');
+
+    // Cada venta que arma la app trae un "idCliente" generado en el celular
+    // (siempre el mismo para esa venta, se reintente o no). Si el celular
+    // manda la misma venta más de una vez -por ejemplo, si el pedido llegó
+    // bien al servidor pero la respuesta se perdió por corte de señal, y la
+    // app la volvió a mandar creyendo que había fallado- acá se detecta y se
+    // devuelve el resultado de la primera vez (con el mismo N° de boleta),
+    // en vez de duplicarla.
+    if (data.idCliente) {
+      var yaRegistrada = buscarVentaPorIdCliente_(ventasSheet, idxIdCliente, idxNumeroBoleta, data.idCliente);
+      if (yaRegistrada) {
+        return {
+          ventaId: yaRegistrada.ventaId,
+          fecha: yaRegistrada.fecha,
+          numeroBoleta: yaRegistrada.numeroBoleta,
+          transferenciaYaEstabaUsada: false,
+          yaEstabaRegistrada: true
+        };
+      }
+    }
+
     var ventaId = siguienteId_(ventasSheet);
     var fecha = new Date();
     var tipoVenta = (data.tipoVenta === 'transferencia') ? 'transferencia' : 'efectivo';
+    var usuario = data.usuario || '';
 
     // Se arma la fila según los encabezados reales de la hoja (por si el
     // orden de columnas cambió a mano, como al agregar Tipo_venta).
     var numColsVentas = ventasSheet.getLastColumn();
     var filaVenta = new Array(numColsVentas).fill('');
-    var idxId = indiceColumna_(ventasSheet, 'ID');
-    var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
-    var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
-    var idxTotal = indiceColumna_(ventasSheet, 'Total');
-    var idxTipoVenta = indiceColumna_(ventasSheet, 'Tipo_venta');
+    // Se lee la fila de encabezados una sola vez (antes eran 5 lecturas
+    // separadas, una por columna) para que registrar la venta sea más rápido.
+    var encabezadosVentas = leerEncabezados_(ventasSheet, 1);
+    var idxId = indiceEnLista_(encabezadosVentas, ['ID']);
+    var idxFecha = indiceEnLista_(encabezadosVentas, ['Fecha']);
+    var idxUsuario = indiceEnLista_(encabezadosVentas, ['Usuario']);
+    var idxTotal = indiceEnLista_(encabezadosVentas, ['Total']);
+    var idxTipoVenta = indiceEnLista_(encabezadosVentas, ['Tipo_venta']);
+
+    // Número de boleta correlativo POR VENDEDOR y por día (arranca en 1 cada
+    // día, como un talonario físico), para poder cruzarlo con un control en
+    // papel además del registro digital.
+    var numeroBoleta = boletaSiguienteDelDia_(ventasSheet, idxFecha, idxUsuario, idxNumeroBoleta, usuario, fecha);
+
     if (idxId > 0) filaVenta[idxId - 1] = ventaId;
     if (idxFecha > 0) filaVenta[idxFecha - 1] = fecha;
-    if (idxUsuario > 0) filaVenta[idxUsuario - 1] = data.usuario || '';
+    if (idxUsuario > 0) filaVenta[idxUsuario - 1] = usuario;
     if (idxTotal > 0) filaVenta[idxTotal - 1] = Number(data.total) || 0;
     if (idxTipoVenta > 0) filaVenta[idxTipoVenta - 1] = tipoVenta;
+    if (idxIdCliente > 0) filaVenta[idxIdCliente - 1] = data.idCliente || '';
+    if (idxNumeroBoleta > 0) filaVenta[idxNumeroBoleta - 1] = numeroBoleta;
     ventasSheet.appendRow(filaVenta);
 
     // Se escriben todas las filas del detalle en una sola llamada (en vez de
@@ -371,6 +587,7 @@ function registrarVenta(data) {
     return {
       ventaId: ventaId,
       fecha: fecha.toISOString(),
+      numeroBoleta: numeroBoleta,
       transferenciaYaEstabaUsada: transferenciaYaEstabaUsada
     };
   } finally {
@@ -386,11 +603,12 @@ function auditoriaDelDia(data) {
   var ventasSheet = getVentasSheet_();
   var detalleSheet = getDetalleSheet_();
 
-  var idxId = indiceColumna_(ventasSheet, 'ID');
-  var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
-  var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
-  var idxTotal = indiceColumna_(ventasSheet, 'Total');
-  var idxTipoVenta = indiceColumna_(ventasSheet, 'Tipo_venta');
+  var encabezadosVentas = leerEncabezados_(ventasSheet, 1);
+  var idxId = indiceEnLista_(encabezadosVentas, ['ID']);
+  var idxFecha = indiceEnLista_(encabezadosVentas, ['Fecha']);
+  var idxUsuario = indiceEnLista_(encabezadosVentas, ['Usuario']);
+  var idxTotal = indiceEnLista_(encabezadosVentas, ['Total']);
+  var idxTipoVenta = indiceEnLista_(encabezadosVentas, ['Tipo_venta']);
 
   var hoy = new Date();
 
@@ -450,18 +668,21 @@ function auditoriaDelDia(data) {
   };
 }
 
-// Todas las ventas del día en curso (de cualquier vendedor), con su detalle
-// de productos, ordenadas de la más reciente a la más antigua.
-function ventasDelDia() {
+// Ventas del día en curso hechas por el vendedor indicado (no las de los
+// demás), con su detalle de productos, ordenadas de la más reciente a la
+// más antigua.
+function ventasDelDia(data) {
+  var usuario = String((data && data.usuario) || '');
   var ventasSheet = getVentasSheet_();
   var detalleSheet = getDetalleSheet_();
   var productosSheet = getProductosSheet_();
 
-  var idxId = indiceColumna_(ventasSheet, 'ID');
-  var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
-  var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
-  var idxTotal = indiceColumna_(ventasSheet, 'Total');
-  var idxTipoVenta = indiceColumna_(ventasSheet, 'Tipo_venta');
+  var encabezadosVentas = leerEncabezados_(ventasSheet, 1);
+  var idxId = indiceEnLista_(encabezadosVentas, ['ID']);
+  var idxFecha = indiceEnLista_(encabezadosVentas, ['Fecha']);
+  var idxUsuario = indiceEnLista_(encabezadosVentas, ['Usuario']);
+  var idxTotal = indiceEnLista_(encabezadosVentas, ['Total']);
+  var idxTipoVenta = indiceEnLista_(encabezadosVentas, ['Tipo_venta']);
 
   var hoy = new Date();
 
@@ -499,6 +720,9 @@ function ventasDelDia() {
     var fechaFila = idxFecha > 0 ? fila[idxFecha - 1] : null;
     if (!(fechaFila instanceof Date) || !esMismoDia_(fechaFila, hoy)) continue;
 
+    var usuarioFila = idxUsuario > 0 ? String(fila[idxUsuario - 1] || '') : '';
+    if (usuarioFila !== usuario) continue; // sólo las ventas propias del vendedor logueado
+
     var idVenta = idxId > 0 ? String(fila[idxId - 1]) : '';
     ventas.push({
       ventaId: idVenta,
@@ -528,10 +752,11 @@ function esMismoDia_(a, b) {
 // día de hoy). Sólo Administrador.
 function recaudacionPorVendedorYDia() {
   var ventasSheet = getVentasSheet_();
-  var idxFecha = indiceColumna_(ventasSheet, 'Fecha');
-  var idxUsuario = indiceColumna_(ventasSheet, 'Usuario');
-  var idxTotal = indiceColumna_(ventasSheet, 'Total');
-  var idxTipoVenta = indiceColumna_(ventasSheet, 'Tipo_venta');
+  var encabezadosVentas = leerEncabezados_(ventasSheet, 1);
+  var idxFecha = indiceEnLista_(encabezadosVentas, ['Fecha']);
+  var idxUsuario = indiceEnLista_(encabezadosVentas, ['Usuario']);
+  var idxTotal = indiceEnLista_(encabezadosVentas, ['Total']);
+  var idxTipoVenta = indiceEnLista_(encabezadosVentas, ['Tipo_venta']);
 
   var zonaHoraria = Session.getScriptTimeZone();
   var valores = ventasSheet.getDataRange().getValues();
@@ -575,13 +800,15 @@ function validarAlumno_(alumno) {
   var sheet = getAlumnoSheet_();
   var fila = Number(alumno && alumno.fila);
   if (!fila || fila < 2 || fila > sheet.getLastRow()) {
-    return { autorizado: false, error: 'Seleccioná tu curso y tu nombre de la lista.' };
+    return { autorizado: false, error: 'Seleccionar el curso y el nombre de la lista.' };
   }
 
-  var idxCurso = indiceColumnaVarios_(sheet, ['Curso']);
-  var idxNombre = indiceColumnaVarios_(sheet, ['Nombre', 'Nombres']);
-  var idxApPaterno = indiceColumnaVarios_(sheet, ['Apellido Paterno', 'ApellidoPaterno', 'Primer Apellido']);
-  var idxApMaterno = indiceColumnaVarios_(sheet, ['Apellido Materno', 'ApellidoMaterno', 'Segundo Apellido', 'SegundoApellido']);
+  var datosEncabezado = datosEncabezado_(sheet, ['Curso', 'Nombre', 'Nombres']);
+  var encabezadosAlumno = datosEncabezado.encabezados;
+  var idxCurso = indiceEnLista_(encabezadosAlumno, ['Curso']);
+  var idxNombre = indiceEnLista_(encabezadosAlumno, ['Nombre', 'Nombres']);
+  var idxApPaterno = indiceEnLista_(encabezadosAlumno, ['Apellido Paterno', 'ApellidoPaterno', 'Primer Apellido']);
+  var idxApMaterno = indiceEnLista_(encabezadosAlumno, ['Apellido Materno', 'ApellidoMaterno', 'Segundo Apellido', 'SegundoApellido']);
 
   var filaValores = sheet.getRange(fila, 1, 1, sheet.getLastColumn()).getValues()[0];
   var nombre = idxNombre > 0 ? String(filaValores[idxNombre - 1] || '').trim() : '';
@@ -607,13 +834,18 @@ function validarAlumno_(alumno) {
 // no exponerlo antes de que el alumno se identifique.
 function obtenerAlumnos() {
   var sheet = getAlumnoSheet_();
-  var idxCurso = indiceColumnaVarios_(sheet, ['Curso']);
-  var idxNombre = indiceColumnaVarios_(sheet, ['Nombre', 'Nombres']);
-  var idxApPaterno = indiceColumnaVarios_(sheet, ['Apellido Paterno', 'ApellidoPaterno', 'Primer Apellido']);
+  var datosEncabezado = datosEncabezado_(sheet, ['Curso', 'Nombre', 'Nombres']);
+  var filaEncabezado = datosEncabezado.fila;
+  var encabezadosAlumno = datosEncabezado.encabezados;
+  var idxCurso = indiceEnLista_(encabezadosAlumno, ['Curso']);
+  var idxNombre = indiceEnLista_(encabezadosAlumno, ['Nombre', 'Nombres']);
+  var idxApPaterno = indiceEnLista_(encabezadosAlumno, ['Apellido Paterno', 'ApellidoPaterno', 'Primer Apellido']);
 
   var valores = sheet.getDataRange().getValues();
   var alumnos = [];
-  for (var i = 1; i < valores.length; i++) {
+  // Los datos empiezan justo después de la fila de encabezados (que puede
+  // no ser la 1, si hay un título arriba).
+  for (var i = filaEncabezado; i < valores.length; i++) {
     var fila = valores[i];
     var nombre = idxNombre > 0 ? String(fila[idxNombre - 1] || '').trim() : '';
     if (!nombre) continue; // fila vacía
@@ -625,6 +857,56 @@ function obtenerAlumnos() {
     });
   }
   return { alumnos: alumnos };
+}
+
+// Diagnóstico de sólo lectura (no expone Apellido Materno) para entender
+// por qué el login de Vendedor no encuentra cursos/alumnos. Se puede abrir
+// directo en el navegador agregando "?accion=diagnosticoAlumnos" a la URL
+// del Web App: muestra en qué hoja de cálculo busca el script, qué pestañas
+// tiene, cuál identificó como la de Alumno, en qué fila están los
+// encabezados y qué columnas logró emparejar.
+function diagnosticoAlumnos_() {
+  var ssActiva = SpreadsheetApp.getActiveSpreadsheet();
+  var resultado = {
+    hojaDeCalculoActiva: { nombre: ssActiva.getName(), id: ssActiva.getId() },
+    pestanasEnLaHojaActiva: ssActiva.getSheets().map(function (h) { return h.getName(); })
+  };
+
+  var sheet;
+  try {
+    sheet = getAlumnoSheet_();
+  } catch (e) {
+    resultado.errorAlBuscarHojaAlumno = String(e);
+    return resultado;
+  }
+
+  resultado.pestanaAlumnoEncontrada = sheet.getName();
+  resultado.totalFilasEnEsaPestana = sheet.getLastRow();
+  resultado.totalColumnasEnEsaPestana = sheet.getLastColumn();
+
+  if (sheet.getLastRow() < 1) {
+    resultado.aviso = 'La pestaña está vacía (0 filas). Por eso no aparece ningún curso.';
+    return resultado;
+  }
+
+  var filaEncabezado = encontrarFilaEncabezados_(sheet, ['Curso', 'Nombre', 'Nombres']);
+  resultado.filaEncabezadoDetectada = filaEncabezado;
+  resultado.contenidoDeEsaFila = sheet.getRange(filaEncabezado, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+  resultado.indiceColumnaCurso = indiceColumnaVarios_(sheet, ['Curso'], filaEncabezado);
+  resultado.indiceColumnaNombre = indiceColumnaVarios_(sheet, ['Nombre', 'Nombres'], filaEncabezado);
+  resultado.indiceColumnaApellidoPaterno = indiceColumnaVarios_(sheet, ['Apellido Paterno', 'ApellidoPaterno', 'Primer Apellido'], filaEncabezado);
+  resultado.indiceColumnaApellidoMaterno = indiceColumnaVarios_(sheet, ['Apellido Materno', 'ApellidoMaterno', 'Segundo Apellido', 'SegundoApellido'], filaEncabezado);
+
+  if (filaEncabezado < sheet.getLastRow()) {
+    resultado.contenidoPrimeraFilaDeDatos = sheet.getRange(filaEncabezado + 1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  }
+
+  var alumnosResultado = obtenerAlumnos();
+  resultado.cantidadAlumnosDetectados = alumnosResultado.alumnos.length;
+  resultado.primerosAlumnos = alumnosResultado.alumnos.slice(0, 3);
+
+  return resultado;
 }
 
 /* ---------------- Transferencias ---------------- */
