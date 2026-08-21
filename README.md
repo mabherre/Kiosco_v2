@@ -122,6 +122,7 @@ Cada vez que quieras actualizar algo (por ejemplo la URL de Apps Script en `js/c
 2. Pestaña **Productos**: tocá **+ Nuevo producto**, cargá nombre, precio y sacá/elegí una foto. **Guardar**. Se sube a la Google Sheet automáticamente.
 3. Pestaña **Vender**: tocá **+** sobre cada producto para agregarlo al carrito con la cantidad deseada. El total se calcula solo.
 4. Antes de imprimir por primera vez: tocá **🖨️ Impresora** (arriba), encendé/emparejá tu impresora térmica Bluetooth y seleccionala en la lista que aparece. Mientras no esté conectada (por ejemplo, recién entraste a la app o la impresora se apagó), el botón muestra un aviso ⚠️; desaparece apenas se conecta. Esto es sólo un indicador — no impide vender ni imprimir por la alternativa de "Compartir" (ver más abajo).
+   - **Pantalla y Bluetooth:** mientras la impresora está conectada, la app evita que la pantalla se apague sola por inactividad (así no se corta la conexión Bluetooth, que es lo que suele pasar en Android cuando la pantalla se bloquea). Si igual se corta —por ejemplo, si se aprieta el botón físico de encender/apagar— la app intenta reconectarse sola apenas se vuelve a prender la pantalla; si no lo logra después de varios intentos, avisa para reconectar a mano con el botón "🖨️ Impresora".
 5. Tocá **Registrar venta e imprimir**: la venta queda guardada en la Google Sheet y se imprime el comprobante con fecha, vendedor, productos, cantidades, subtotales y total.
 
 ---
