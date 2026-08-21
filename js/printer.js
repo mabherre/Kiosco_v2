@@ -17,14 +17,53 @@ var Impresora = (function () {
   var dispositivo = null;
   var characteristic = null;
   var callbackCambioEstado = null;
+  var callbackReconexion = null;
 
   function soportado() {
     return !!navigator.bluetooth;
   }
 
+  /* ---------- Pantalla despierta mientras hay impresora conectada ----------
+   * En Android, cuando la pantalla se apaga sola por inactividad, Chrome
+   * corta las conexiones Bluetooth activas para ahorrar batería (así se
+   * pierde la impresora). El Screen Wake Lock evita que la pantalla se
+   * apague sola mientras la impresora está conectada, para que esto no
+   * pase. No evita que se apague si el vendedor aprieta el botón físico de
+   * encendido; para ese caso está el reintento automático de más abajo.
+   */
+  var wakeLockSentinel = null;
+
+  function solicitarWakeLock_() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen')
+      .then(function (sentinel) {
+        wakeLockSentinel = sentinel;
+        sentinel.addEventListener('release', function () { wakeLockSentinel = null; });
+      })
+      .catch(function () { /* el navegador puede rechazarlo si la pestaña no está visible; no es grave */ });
+  }
+
+  function liberarWakeLock_() {
+    if (wakeLockSentinel) {
+      wakeLockSentinel.release().catch(function () {});
+      wakeLockSentinel = null;
+    }
+  }
+
+  // Si la pestaña vuelve a estar visible (se prendió la pantalla de nuevo)
+  // y la impresora quedó desconectada, se intenta reconectar sola.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (dispositivo && !estaConectada()) {
+      intentarReconectar_();
+    } else if (estaConectada() && !wakeLockSentinel) {
+      solicitarWakeLock_();
+    }
+  });
+
   function conectar() {
     if (!soportado()) {
-      return Promise.reject(new Error('Este navegador no soporta Bluetooth. Usá Chrome en Android.'));
+      return Promise.reject(new Error('Este navegador no soporta Bluetooth. Usar Chrome en Android.'));
     }
     // Importante: sólo se puede llamar a requestDevice() UNA vez por click
     // (necesita "gesto de usuario" activo). Se usa acceptAllDevices para que
@@ -36,11 +75,13 @@ var Impresora = (function () {
     })
       .then(function (device) {
         dispositivo = device;
-        // Si la impresora se apaga o se aleja durante el día, avisamos para
-        // que el indicador de "no conectada" se actualice solo.
+        // Si la impresora se apaga, se aleja, o se pierde la conexión al
+        // apagarse la pantalla, se intenta reconectar sola (no hace falta
+        // que el vendedor vuelva a tocar "Conectar impresora" cada vez).
         device.addEventListener('gattserverdisconnected', function () {
           characteristic = null;
           if (callbackCambioEstado) callbackCambioEstado();
+          intentarReconectar_();
         });
         return device.gatt.connect();
       })
@@ -52,9 +93,42 @@ var Impresora = (function () {
       })
       .then(function (char) {
         characteristic = char;
+        solicitarWakeLock_();
         if (callbackCambioEstado) callbackCambioEstado();
         return true;
       });
+  }
+
+  // Reintenta la conexión sola, unas pocas veces con una pequeña espera
+  // entre intento e intento (el Bluetooth del celular puede tardar unos
+  // segundos en estar listo otra vez justo después de prender la pantalla).
+  var REINTENTOS_RECONEXION = 4;
+  var reconectando = false;
+  function intentarReconectar_(intento) {
+    intento = intento || 1;
+    if (!dispositivo || reconectando) return;
+    if (intento > REINTENTOS_RECONEXION) {
+      reconectando = false;
+      if (callbackReconexion) callbackReconexion(false);
+      return;
+    }
+    reconectando = true;
+    setTimeout(function () {
+      dispositivo.gatt.connect()
+        .then(function (server) { return server.getPrimaryService(SERVICE_UUID); })
+        .then(function (service) { return service.getCharacteristic(CHARACTERISTIC_UUID); })
+        .then(function (char) {
+          characteristic = char;
+          reconectando = false;
+          solicitarWakeLock_();
+          if (callbackCambioEstado) callbackCambioEstado();
+          if (callbackReconexion) callbackReconexion(true);
+        })
+        .catch(function () {
+          reconectando = false;
+          intentarReconectar_(intento + 1);
+        });
+    }, 1500 * intento);
   }
 
   function estaConectada() {
@@ -65,6 +139,12 @@ var Impresora = (function () {
   // (conectada o desconectada), para actualizar el indicador visual.
   function alCambiarEstado(cb) {
     callbackCambioEstado = cb;
+  }
+
+  // Permite que app.js muestre un aviso cuando la reconexión automática
+  // termina (con éxito o, tras varios intentos, sin éxito).
+  function alReconectar(cb) {
+    callbackReconexion = cb;
   }
 
   // --- Construcción de comandos ESC/POS ---
@@ -254,6 +334,7 @@ var Impresora = (function () {
     conectar: conectar,
     estaConectada: estaConectada,
     alCambiarEstado: alCambiarEstado,
+    alReconectar: alReconectar,
     imprimirVenta: imprimirVenta,
     puedeCompartirImagenes: puedeCompartirImagenes,
     compartirTicket: compartirTicket
