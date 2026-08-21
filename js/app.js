@@ -587,6 +587,16 @@
   // aleja, se queda sin batería) para que el indicador quede al día.
   Impresora.alCambiarEstado(actualizarBadgeImpresora);
 
+  // Aviso cuando termina un intento de reconexión automática (por ejemplo,
+  // después de que la pantalla se apagó y se volvió a prender).
+  Impresora.alReconectar(function (exito) {
+    if (exito) {
+      toast('Impresora reconectada.');
+    } else {
+      toast('Se perdió la conexión con la impresora. Tocá "🖨️ Impresora" para reconectarla.', true);
+    }
+  });
+
   $('btn-conectar-impresora').addEventListener('click', function () {
     if (!Impresora.soportado()) {
       toast('Este navegador no soporta Bluetooth. Usar Chrome en Android.', true);
