@@ -431,7 +431,12 @@
       texto += ' — Boleta N° ' + venta.numeroBoleta + (venta.numeroBoletaProvisorio ? ' (provisoria)' : '');
     }
     if (pendienteDeSincronizar) {
-      texto += ' — ⚠️ Guardada en el celular, sin señal todavía. Se va a mandar sola a la hoja apenas haya conexión (el N° de boleta impreso es provisorio; el definitivo queda en la hoja al sincronizar).';
+      // Ojo con la redacción: no se puede asegurar que el pedido NO haya
+      // llegado al servidor (puede que sí haya llegado y sólo se haya
+      // perdido la respuesta). Por eso no se dice "no se guardó todavía",
+      // para no generar la sensación de que "apareció una venta sola" más
+      // tarde cuando en realidad ya estaba guardada desde el principio.
+      texto += ' — ⚠️ Quedó guardada en el celular como pendiente de sincronizar (puede que ya se haya registrado en la hoja igual, y la app no lo pudo confirmar por la señal). Se va a terminar de sincronizar sola apenas haya conexión, sin duplicarse. El N° de boleta impreso es provisorio; el definitivo queda en la hoja al sincronizar.';
     }
     $('venta-exito-resumen').textContent = texto;
     $('modal-venta-exito').classList.remove('oculto');
