@@ -61,6 +61,30 @@ var Impresora = (function () {
     }
   });
 
+  // Guarda cuál fue la última impresora usada (Chrome recuerda el permiso
+  // Bluetooth entre recargas de la página; ver más abajo cómo se
+  // aprovecha esto para reconectar sola sin pedir el permiso de nuevo).
+  var IMPRESORA_ID_KEY = 'kiosco_impresora_id_v1';
+
+  function guardarImpresoraRecordada_(device) {
+    try { localStorage.setItem(IMPRESORA_ID_KEY, device.id); } catch (e) {}
+  }
+
+  // Conecta al GATT de un BluetoothDevice ya obtenido (por requestDevice() o
+  // por getDevices()) y deja todo listo para imprimir. No pide permiso: eso
+  // ya lo tiene que haber hecho quien llama a esta función.
+  function conectarAlDispositivo_(device) {
+    return device.gatt.connect()
+      .then(function (server) { return server.getPrimaryService(SERVICE_UUID); })
+      .then(function (service) { return service.getCharacteristic(CHARACTERISTIC_UUID); })
+      .then(function (char) {
+        characteristic = char;
+        solicitarWakeLock_();
+        if (callbackCambioEstado) callbackCambioEstado();
+        return true;
+      });
+  }
+
   function conectar() {
     if (!soportado()) {
       return Promise.reject(new Error('Este navegador no soporta Bluetooth. Usar Chrome en Android.'));
@@ -75,6 +99,7 @@ var Impresora = (function () {
     })
       .then(function (device) {
         dispositivo = device;
+        guardarImpresoraRecordada_(device);
         // Si la impresora se apaga, se aleja, o se pierde la conexión al
         // apagarse la pantalla, se intenta reconectar sola (no hace falta
         // que el vendedor vuelva a tocar "Conectar impresora" cada vez).
@@ -83,21 +108,41 @@ var Impresora = (function () {
           if (callbackCambioEstado) callbackCambioEstado();
           intentarReconectar_();
         });
-        return device.gatt.connect();
-      })
-      .then(function (server) {
-        return server.getPrimaryService(SERVICE_UUID);
-      })
-      .then(function (service) {
-        return service.getCharacteristic(CHARACTERISTIC_UUID);
-      })
-      .then(function (char) {
-        characteristic = char;
-        solicitarWakeLock_();
-        if (callbackCambioEstado) callbackCambioEstado();
-        return true;
+        return conectarAlDispositivo_(device);
       });
   }
+
+  // Al cargar la página (por ejemplo, después de actualizarla) se perdió la
+  // conexión Bluetooth porque se reinició todo el JavaScript. Pero Chrome
+  // recuerda el permiso otorgado antes, así que se puede reconectar sola a
+  // la misma impresora sin volver a pedirle nada al vendedor — siempre que
+  // el navegador soporte permisos persistentes de Web Bluetooth
+  // (navigator.bluetooth.getDevices; Chrome en Android lo soporta desde
+  // hace varias versiones). Si no lo soporta, no pasa nada: sigue
+  // funcionando como antes, con el botón "🖨️ Impresora".
+  function intentarReconectarAlCargar_() {
+    if (!soportado() || typeof navigator.bluetooth.getDevices !== 'function') return;
+    var idGuardado;
+    try { idGuardado = localStorage.getItem(IMPRESORA_ID_KEY); } catch (e) { idGuardado = null; }
+    if (!idGuardado) return;
+
+    navigator.bluetooth.getDevices()
+      .then(function (devices) {
+        var device = devices.filter(function (d) { return d.id === idGuardado; })[0];
+        if (!device) return; // el permiso ya no está (se revocó, o es otro celular)
+        dispositivo = device;
+        device.addEventListener('gattserverdisconnected', function () {
+          characteristic = null;
+          if (callbackCambioEstado) callbackCambioEstado();
+          intentarReconectar_();
+        });
+        return conectarAlDispositivo_(device).then(function () {
+          if (callbackReconexion) callbackReconexion(true);
+        });
+      })
+      .catch(function () { /* la impresora puede estar apagada o lejos en este momento; se puede reconectar a mano */ });
+  }
+  intentarReconectarAlCargar_();
 
   // Reintenta la conexión sola, unas pocas veces con una pequeña espera
   // entre intento e intento (el Bluetooth del celular puede tardar unos
@@ -114,14 +159,9 @@ var Impresora = (function () {
     }
     reconectando = true;
     setTimeout(function () {
-      dispositivo.gatt.connect()
-        .then(function (server) { return server.getPrimaryService(SERVICE_UUID); })
-        .then(function (service) { return service.getCharacteristic(CHARACTERISTIC_UUID); })
-        .then(function (char) {
-          characteristic = char;
+      conectarAlDispositivo_(dispositivo)
+        .then(function () {
           reconectando = false;
-          solicitarWakeLock_();
-          if (callbackCambioEstado) callbackCambioEstado();
           if (callbackReconexion) callbackReconexion(true);
         })
         .catch(function () {
