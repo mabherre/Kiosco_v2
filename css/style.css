@@ -435,10 +435,21 @@ table.tabla-recaudacion tfoot td {
 .modal {
   position: fixed; inset: 0; background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px;
+  overflow-y: auto;
 }
 .modal-contenido {
   background: #fff; border-radius: 14px; padding: 20px; max-width: 420px; width: 100%;
   max-height: 90vh; overflow-y: auto;
+  /* "dvh" (altura de viewport dinámica) evita que este cálculo se base en
+     el alto de pantalla completo cuando el navegador todavía tiene visible
+     su propia barra (dirección, pestañas, etc.): en algunos navegadores de
+     tablet, "vh" se calcula como si esa barra no estuviera, y el resultado
+     puede terminar más alto que el espacio realmente visible, cortando la
+     parte de abajo del mensaje. Los navegadores que no soportan "dvh"
+     simplemente ignoran esta línea y se quedan con el valor de "vh" de
+     arriba. */
+  max-height: 90dvh;
+  margin: auto;
 }
 .modal-contenido label { display: block; margin-top: 12px; font-size: 13px; font-weight: 600; color: #555; }
 .modal-contenido input[type=text], .modal-contenido input[type=number] {
