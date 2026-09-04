@@ -11,12 +11,22 @@
 
 * { box-sizing: border-box; }
 
+/* Evita el gesto de "deslizar hacia abajo para actualizar" del navegador.
+   Cada vez que la página se recarga se pierde la conexión Bluetooth con la
+   impresora (Web Bluetooth no permite reconectar sola sin que la persona
+   toque algo), así que conviene que un deslizón accidental (o por hábito,
+   al desplazarse por la lista de productos) no dispare una recarga. */
+html {
+  overscroll-behavior-y: contain;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, Roboto, "Segoe UI", Arial, sans-serif;
   background: var(--gris-fondo);
   color: var(--texto);
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
 }
 
 .oculto { display: none !important; }
