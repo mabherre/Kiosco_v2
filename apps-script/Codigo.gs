@@ -33,14 +33,16 @@ var ACCIONES_SOLO_ADMIN = ['agregarProducto', 'actualizarProducto', 'eliminarPro
 // Acciones que sólo puede hacer un Vendedor. En vez de una clave
 // compartida, cada pedido tiene que traer data.alumno = {fila, apellidoMaterno}
 // y se valida contra la hoja Alumno (ver validarAlumno_).
-var ACCIONES_SOLO_VENDEDOR = ['registrarVenta', 'buscarTransferencias', 'obtenerTransferenciasSinUsar', 'auditoriaDelDia', 'ventasDelDia', 'proximoNumeroBoleta'];
+var ACCIONES_SOLO_VENDEDOR = ['registrarVenta', 'buscarTransferencias', 'obtenerTransferenciasSinUsar', 'auditoriaDelDia', 'ventasDelDia', 'proximoNumeroBoleta', 'obtenerCreditos'];
 
 // Hoja externa donde se registran las transferencias recibidas (abonos de
-// clientes). No es la misma hoja que la del kiosco: se abre por ID.
+// clientes), y también los "créditos" (transferencias que se pueden usar en
+// más de una compra, con saldo). No es la misma hoja que la del kiosco: se
+// abre por ID.
 var ID_HOJA_TRANSFERENCIAS = '1jEK_0p0WOxA36t7-iOtwZXEdcT8-Xmpl_bzh5_r7nt8';
 var PESTANA_TRANSFERENCIAS = 'registro';
 // Columnas (1-based) de esa hoja, en este orden:
-// Fecha | Documento | Movimiento | RUN | Nombre completo | Abono | Estado | Fila origen | Estado Pago
+// Fecha | Documento | Movimiento | RUN | Nombre completo | Abono | Estado | Fila origen | Estado Pago | Usuario
 var COL_TRANSF_FECHA = 1;
 var COL_TRANSF_RUN = 4;
 var COL_TRANSF_NOMBRE = 5;
@@ -135,6 +137,9 @@ function doPost(e) {
         break;
       case 'proximoNumeroBoleta':
         resultado = proximoNumeroBoletaSugerido(data);
+        break;
+      case 'obtenerCreditos':
+        resultado = obtenerCreditos();
         break;
       default:
         return respond({ ok: false, error: 'Acción POST no reconocida: ' + accion });
@@ -526,9 +531,32 @@ function registrarVenta(data) {
       }
     }
 
+    // Si la venta se paga con un crédito (transferencia con saldo, ver
+    // pestaña CREDITO), se valida ACÁ, antes de escribir nada, que el
+    // saldo todavía alcance para el total de esta venta. Así, si no
+    // alcanza, no queda una venta a medio registrar.
+    var creditoSheet = null;
+    var creditoInfo = null;
+    if (data.creditoFila) {
+      creditoSheet = getCreditoSheet_();
+      var filaCredito = Number(data.creditoFila);
+      var idxSaldoCredito = indiceColumna_(creditoSheet, 'Saldo');
+      var saldoActual = (idxSaldoCredito > 0 && filaCredito > 1)
+        ? (Number(creditoSheet.getRange(filaCredito, idxSaldoCredito).getValue()) || 0)
+        : 0;
+      if (Number(data.total) > saldoActual) {
+        return {
+          autorizado: false,
+          error: 'El total de la venta ($' + (Number(data.total) || 0) + ') supera el saldo disponible del crédito ($' + saldoActual + ').'
+        };
+      }
+      creditoInfo = { fila: filaCredito, saldoActual: saldoActual, idxSaldo: idxSaldoCredito };
+    }
+
     var ventaId = siguienteId_(ventasSheet);
     var fecha = new Date();
-    var tipoVenta = (data.tipoVenta === 'transferencia') ? 'transferencia' : 'efectivo';
+    var tiposVentaValidos = ['transferencia', 'credito'];
+    var tipoVenta = tiposVentaValidos.indexOf(data.tipoVenta) !== -1 ? data.tipoVenta : 'efectivo';
     var usuario = data.usuario || '';
 
     // Se arma la fila según los encabezados reales de la hoja (por si el
@@ -580,8 +608,40 @@ function registrarVenta(data) {
     // esa fila como usada en la hoja de transferencias.
     var transferenciaYaEstabaUsada = false;
     if (data.transferenciaFila) {
-      var resultadoMarca = marcarTransferenciaUsada({ fila: data.transferenciaFila });
+      var resultadoMarca = marcarTransferenciaUsada({ fila: data.transferenciaFila, usuario: usuario });
       transferenciaYaEstabaUsada = !!resultadoMarca.yaEstabaUsada;
+    }
+
+    // Si la venta se pagó con un crédito, se descuenta el monto usado del
+    // saldo y se deja anotada la compra en DETALLE_CREDITO.
+    if (creditoInfo) {
+      var nuevoSaldo = creditoInfo.saldoActual - (Number(data.total) || 0);
+      creditoSheet.getRange(creditoInfo.fila, creditoInfo.idxSaldo).setValue(nuevoSaldo);
+
+      var idxUsuarioCredito = agregarColumnaSiFalta_(creditoSheet, 'Usuario');
+      creditoSheet.getRange(creditoInfo.fila, idxUsuarioCredito).setValue(usuario);
+
+      var idxIdCreditoCol = indiceColumna_(creditoSheet, 'id_credito');
+      var idCreditoValor = idxIdCreditoCol > 0 ? creditoSheet.getRange(creditoInfo.fila, idxIdCreditoCol).getValue() : '';
+
+      var detalleCreditoSheet = getDetalleCreditoSheet_();
+      var encabezadosDetalleCredito = leerEncabezados_(detalleCreditoSheet, 1);
+      var idxDcIdCredito = indiceEnLista_(encabezadosDetalleCredito, ['id_credito']);
+      var idxDcFecha = indiceEnLista_(encabezadosDetalleCredito, ['Fecha_compra']);
+      var idxDcMonto = indiceEnLista_(encabezadosDetalleCredito, ['monto']);
+      var idxDcUsuario = indiceEnLista_(encabezadosDetalleCredito, ['Usuario']);
+      var idxDcIdBoleta = indiceEnLista_(encabezadosDetalleCredito, ['id_boleta']);
+
+      var filaDetalleCredito = new Array(detalleCreditoSheet.getLastColumn()).fill('');
+      if (idxDcIdCredito > 0) filaDetalleCredito[idxDcIdCredito - 1] = idCreditoValor;
+      if (idxDcFecha > 0) filaDetalleCredito[idxDcFecha - 1] = fecha;
+      if (idxDcMonto > 0) filaDetalleCredito[idxDcMonto - 1] = Number(data.total) || 0;
+      if (idxDcUsuario > 0) filaDetalleCredito[idxDcUsuario - 1] = usuario;
+      // id_boleta guarda el N° de Boleta impreso en el ticket (correlativo
+      // por vendedor y día), no el ID interno de la venta: es lo que
+      // coincide con lo que el cliente ve en su comprobante.
+      if (idxDcIdBoleta > 0) filaDetalleCredito[idxDcIdBoleta - 1] = numeroBoleta;
+      detalleCreditoSheet.appendRow(filaDetalleCredito);
     }
 
     return {
@@ -917,6 +977,71 @@ function getHojaTransferencias_() {
   return SpreadsheetApp.openById(ID_HOJA_TRANSFERENCIAS).getSheetByName(PESTANA_TRANSFERENCIAS);
 }
 
+// Busca una pestaña por nombre dentro de un libro, sin importar mayúsculas
+// ni espacios sobrantes (mismo criterio que getAlumnoSheet_ para la pestaña
+// Alumno: evita depender de un nombre exacto de pestaña).
+function buscarPestanaEnLibro_(spreadsheet, nombresValidos) {
+  var hojas = spreadsheet.getSheets();
+  for (var i = 0; i < hojas.length; i++) {
+    if (nombresValidos.indexOf(hojas[i].getName().trim().toLowerCase()) !== -1) {
+      return hojas[i];
+    }
+  }
+  return null;
+}
+
+// Pestaña CREDITO: transferencias que se pueden usar en más de una compra
+// (tienen un saldo que se va descontando). Vive en la misma hoja externa
+// que "registro" (Transferencias).
+function getCreditoSheet_() {
+  var ss = SpreadsheetApp.openById(ID_HOJA_TRANSFERENCIAS);
+  var sheet = buscarPestanaEnLibro_(ss, ['credito', 'créditos', 'creditos', 'crédito']);
+  if (!sheet) throw new Error('No se encontró la pestaña "CREDITO" en la hoja de Transferencias.');
+  return sheet;
+}
+
+// Pestaña DETALLE_CREDITO: un renglón por cada compra que usó un crédito
+// (cuánto se descontó, quién la hizo y en qué boleta quedó).
+function getDetalleCreditoSheet_() {
+  var ss = SpreadsheetApp.openById(ID_HOJA_TRANSFERENCIAS);
+  var sheet = buscarPestanaEnLibro_(ss, ['detalle_credito', 'detalle credito', 'detallecredito']);
+  if (!sheet) throw new Error('No se encontró la pestaña "DETALLE_CREDITO" en la hoja de Transferencias.');
+  return sheet;
+}
+
+// Créditos con saldo disponible (saldo > 0), para el selector de la
+// pestaña Créditos del Vendedor.
+function obtenerCreditos() {
+  var sheet = getCreditoSheet_();
+  var encabezados = leerEncabezados_(sheet, 1);
+  var idxIdCredito = indiceEnLista_(encabezados, ['id_credito']);
+  var idxFecha = indiceEnLista_(encabezados, ['Fecha']);
+  var idxRUN = indiceEnLista_(encabezados, ['RUN']);
+  var idxNombre = indiceEnLista_(encabezados, ['Nombre completo']);
+  var idxAbono = indiceEnLista_(encabezados, ['Abono']);
+  var idxSaldo = indiceEnLista_(encabezados, ['Saldo']);
+
+  var valores = sheet.getDataRange().getValues();
+  var creditos = [];
+  for (var i = 1; i < valores.length; i++) {
+    var fila = valores[i];
+    var saldo = idxSaldo > 0 ? (Number(fila[idxSaldo - 1]) || 0) : 0;
+    if (saldo <= 0) continue; // sólo los que todavía tienen saldo disponible
+
+    var fechaCelda = idxFecha > 0 ? fila[idxFecha - 1] : null;
+    creditos.push({
+      fila: i + 1, // número real de la fila en CREDITO, para poder usarlo y descontarle después
+      idCredito: idxIdCredito > 0 ? fila[idxIdCredito - 1] : '',
+      fecha: (fechaCelda instanceof Date) ? fechaCelda.toISOString() : String(fechaCelda || ''),
+      run: idxRUN > 0 ? String(fila[idxRUN - 1] || '') : '',
+      nombreCompleto: idxNombre > 0 ? String(fila[idxNombre - 1] || '') : '',
+      abono: idxAbono > 0 ? (Number(fila[idxAbono - 1]) || 0) : 0,
+      saldo: saldo
+    });
+  }
+  return { creditos: creditos };
+}
+
 function normalizarTexto_(s) {
   return String(s || '').toLowerCase().replace(/[.\-\s]/g, '');
 }
@@ -963,6 +1088,12 @@ function marcarTransferenciaUsada(data) {
   // después de haberse hecho sin conexión) ya la había usado antes.
   var yaEstabaUsada = !!celda.getValue();
   celda.setValue('Usado');
+  // Deja registrado qué vendedor la usó, en la columna Usuario (se agrega
+  // sola si todavía no existe en la hoja).
+  if (data.usuario) {
+    var idxUsuario = agregarColumnaSiFalta_(sheet, 'Usuario');
+    sheet.getRange(fila, idxUsuario).setValue(data.usuario);
+  }
   return { actualizado: true, yaEstabaUsada: yaEstabaUsada };
 }
 

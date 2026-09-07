@@ -9,7 +9,8 @@
     productos: [],
     carrito: {}, // { productoId: { producto, cantidad } }
     transferenciaSeleccionada: null, // { fila, fecha, run, nombreCompleto, abono }
-    tipoVenta: 'efectivo', // 'efectivo' | 'transferencia'
+    creditoSeleccionado: null, // { fila, idCredito, nombreCompleto, run, saldo }
+    tipoVenta: 'efectivo', // 'efectivo' | 'transferencia' | 'credito'
     alumnoActual: null, // { fila, apellidoMaterno } - credenciales del vendedor logueado
     alumnosDisponibles: [] // copia de la hoja Alumno para los selects del login
   };
@@ -251,6 +252,7 @@
     if (nombreTab === 'auditoria') cargarAuditoria();
     if (nombreTab === 'ventas-dia') cargarVentasDelDia();
     if (nombreTab === 'recaudacion') cargarRecaudacion();
+    if (nombreTab === 'creditos') cargarCreditos();
   }
 
   document.querySelectorAll('.tab').forEach(function (btn) {
@@ -354,6 +356,17 @@
     });
     if (!items.length) return;
     var total = items.reduce(function (acc, it) { return acc + it.subtotal; }, 0);
+
+    // Si se está vendiendo con cargo a un crédito, no se deja avanzar si el
+    // total supera el saldo disponible (el servidor también lo valida, pero
+    // conviene avisar altiro sin esperar el viaje de ida y vuelta).
+    if (estado.tipoVenta === 'credito' && estado.creditoSeleccionado) {
+      if (total > estado.creditoSeleccionado.saldo) {
+        toast('El total (' + formatoMoneda(total) + ') supera el saldo disponible del crédito (' + formatoMoneda(estado.creditoSeleccionado.saldo) + ').', true);
+        return;
+      }
+    }
+
     var venta = {
       // Identificador único generado acá mismo, una sola vez por venta (se
       // reintente o no el envío). Si el pedido llega al servidor pero la
@@ -374,6 +387,9 @@
     };
     if (estado.transferenciaSeleccionada) {
       venta.transferenciaFila = estado.transferenciaSeleccionada.fila;
+    }
+    if (estado.tipoVenta === 'credito' && estado.creditoSeleccionado) {
+      venta.creditoFila = estado.creditoSeleccionado.fila;
     }
 
     // Se calcula ya mismo el N° de boleta "provisorio" de esta venta (ver
@@ -408,12 +424,15 @@
 
   function finalizarVentaExitosa(venta, pendienteDeSincronizar) {
     if (venta.transferenciaFila) quitarTransferenciaDelListado_(venta.transferenciaFila);
+    if (venta.creditoFila) actualizarCreditoDelListado_(venta.creditoFila, venta.total);
     estado.carrito = {};
     estado.transferenciaSeleccionada = null;
+    estado.creditoSeleccionado = null;
     estado.tipoVenta = 'efectivo';
     renderizarProductosVenta();
     renderizarCarrito();
     renderizarBannerTransferencia();
+    renderizarBannerCredito();
     renderizarSelectorTipoVenta();
     mostrarVentaExito(venta, pendienteDeSincronizar);
   }
@@ -730,10 +749,11 @@
       .then(ocultarCarga);
   });
 
-  /* ---------- Selector de tipo de venta (efectivo / transferencia) ---------- */
+  /* ---------- Selector de tipo de venta (efectivo / transferencia / crédito) ---------- */
   function renderizarSelectorTipoVenta() {
     $('btn-tipo-efectivo').classList.toggle('activo', estado.tipoVenta === 'efectivo');
     $('btn-tipo-transferencia').classList.toggle('activo', estado.tipoVenta === 'transferencia');
+    $('btn-tipo-credito').classList.toggle('activo', estado.tipoVenta === 'credito');
   }
 
   function elegirTipoVenta(tipo) {
@@ -743,6 +763,7 @@
 
   $('btn-tipo-efectivo').addEventListener('click', function () { elegirTipoVenta('efectivo'); });
   $('btn-tipo-transferencia').addEventListener('click', function () { elegirTipoVenta('transferencia'); });
+  $('btn-tipo-credito').addEventListener('click', function () { elegirTipoVenta('credito'); });
 
   /* ---------- Transferencias (vendedor) ---------- */
   function renderizarBannerTransferencia() {
@@ -832,6 +853,95 @@
         estado.transferenciaSeleccionada = t;
         estado.tipoVenta = 'transferencia';
         renderizarBannerTransferencia();
+        renderizarSelectorTipoVenta();
+        activarTab('venta');
+      });
+      cont.appendChild(div);
+    });
+  }
+
+  /* ---------- Créditos (vendedor) ---------- */
+  // Transferencias con saldo a favor que se pueden usar en más de una
+  // compra (a diferencia de una transferencia común, que se consume entera
+  // en una sola venta). Se muestran directamente todas las que tengan
+  // saldo > 0, sin buscador (se espera que sean pocas).
+  function renderizarBannerCredito() {
+    var banner = $('banner-credito');
+    if (!estado.creditoSeleccionado) {
+      banner.classList.add('oculto');
+      return;
+    }
+    var c = estado.creditoSeleccionado;
+    $('banner-credito-texto').textContent =
+      'Crédito de ' + c.nombreCompleto + ' (RUN ' + c.run + ') — Saldo disponible: ' + formatoMoneda(c.saldo);
+    banner.classList.remove('oculto');
+  }
+
+  $('btn-quitar-credito').addEventListener('click', function () {
+    estado.creditoSeleccionado = null;
+    renderizarBannerCredito();
+  });
+
+  $('btn-actualizar-creditos').addEventListener('click', cargarCreditos);
+
+  function cargarCreditos() {
+    mostrarCarga('Cargando créditos...');
+    DB.obtenerCreditos()
+      .then(function (resp) {
+        renderizarResultadosCreditos(resp.creditos || [], resp.actualizado);
+      })
+      .catch(function (err) { toast('Error al cargar créditos: ' + err.message, true); })
+      .then(ocultarCarga);
+  }
+
+  // Descuenta localmente (sin esperar un refresco) el monto recién usado del
+  // crédito que se acaba de aplicar en una venta, para que la lista mostrada
+  // no quede desactualizada. Si el saldo llega a 0, se saca del listado.
+  function actualizarCreditoDelListado_(fila, montoUsado) {
+    var cont = $('lista-creditos');
+    var el = cont.querySelector('.transferencia-item[data-fila="' + fila + '"]');
+    if (!el) return;
+    var nuevoSaldo = (Number(el.dataset.saldo) || 0) - (Number(montoUsado) || 0);
+    if (nuevoSaldo <= 0) {
+      el.remove();
+      if (!cont.querySelector('.transferencia-item')) {
+        cont.innerHTML = '<p class="vacio">No hay créditos con saldo disponible.</p>';
+      }
+      return;
+    }
+    el.dataset.saldo = nuevoSaldo;
+    var abonoEl = el.querySelector('.abono');
+    if (abonoEl) abonoEl.textContent = 'Saldo disponible: ' + formatoMoneda(nuevoSaldo);
+  }
+
+  function renderizarResultadosCreditos(lista, actualizadoOffline) {
+    var cont = $('lista-creditos');
+    var avisoOffline = actualizadoOffline
+      ? '<p class="aviso-offline">⚠️ Sin conexión: mostrando datos guardados el ' +
+        new Date(actualizadoOffline).toLocaleString() + '. Pueden estar desactualizados.</p>'
+      : '';
+    if (!lista.length) {
+      cont.innerHTML = avisoOffline + '<p class="vacio">No hay créditos con saldo disponible.</p>';
+      return;
+    }
+    cont.innerHTML = avisoOffline;
+    lista.forEach(function (c) {
+      var div = document.createElement('div');
+      div.className = 'transferencia-item';
+      div.dataset.fila = c.fila;
+      div.dataset.saldo = c.saldo;
+      var fechaTexto = c.fecha ? new Date(c.fecha).toLocaleDateString() : '';
+      div.innerHTML =
+        '<div class="info">' +
+        '<div class="nombre">' + escapeHtml(c.nombreCompleto) + '</div>' +
+        '<div class="detalle">RUN: ' + escapeHtml(c.run) + (fechaTexto ? ' — ' + fechaTexto : '') + '</div>' +
+        '<div class="abono">Saldo disponible: ' + formatoMoneda(c.saldo) + '</div>' +
+        '</div>' +
+        '<button class="btn btn-primario btn-usar-credito">Usar</button>';
+      div.querySelector('.btn-usar-credito').addEventListener('click', function () {
+        estado.creditoSeleccionado = { fila: c.fila, idCredito: c.idCredito, nombreCompleto: c.nombreCompleto, run: c.run, saldo: c.saldo };
+        estado.tipoVenta = 'credito';
+        renderizarBannerCredito();
         renderizarSelectorTipoVenta();
         activarTab('venta');
       });

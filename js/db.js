@@ -12,6 +12,7 @@ var DB = (function () {
 
   var CACHE_PRODUCTOS_KEY = 'kiosco_productos_cache_v1';
   var CACHE_TRANSFERENCIAS_KEY = 'kiosco_transferencias_cache_v1';
+  var CACHE_CREDITOS_KEY = 'kiosco_creditos_cache_v1';
   var COLA_VENTAS_KEY = 'kiosco_cola_ventas_v1';
   var TIMEOUT_MS = 20000; // si no responde en este tiempo, se trata como sin conexión
   // (Apps Script a veces tarda varios segundos en responder, sobre todo con
@@ -98,6 +99,24 @@ var DB = (function () {
   function leerCacheTransferencias() {
     try {
       var raw = localStorage.getItem(CACHE_TRANSFERENCIAS_KEY);
+      return raw ? JSON.parse(raw) : { actualizado: null, lista: [] };
+    } catch (e) { return { actualizado: null, lista: [] }; }
+  }
+
+  /* ---------------- Caché de créditos con saldo disponible ---------------- */
+
+  function guardarCacheCreditos(lista) {
+    try {
+      localStorage.setItem(CACHE_CREDITOS_KEY, JSON.stringify({
+        actualizado: new Date().toISOString(),
+        lista: lista
+      }));
+    } catch (e) {}
+  }
+
+  function leerCacheCreditos() {
+    try {
+      var raw = localStorage.getItem(CACHE_CREDITOS_KEY);
       return raw ? JSON.parse(raw) : { actualizado: null, lista: [] };
     } catch (e) { return { actualizado: null, lista: [] }; }
   }
@@ -208,6 +227,24 @@ var DB = (function () {
         .then(function (json) {
           guardarCacheTransferencias(json.transferencias || []);
           return json.transferencias || [];
+        });
+    },
+
+    // Créditos con saldo disponible (transferencias que se pueden usar en
+    // más de una compra). Si no hay señal, devuelve la última copia
+    // guardada (con "actualizado" para poder avisar que puede estar vieja).
+    obtenerCreditos: function () {
+      return llamarBackend('obtenerCreditos', { alumno: alumnoActual })
+        .then(function (json) {
+          guardarCacheCreditos(json.creditos || []);
+          return { creditos: json.creditos || [], actualizado: null };
+        })
+        .catch(function (err) {
+          if (err.esErrorDeRed) {
+            var cache = leerCacheCreditos();
+            return { creditos: cache.lista, actualizado: cache.actualizado };
+          }
+          throw err;
         });
     },
 

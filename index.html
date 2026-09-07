@@ -66,6 +66,7 @@
   <nav class="tabs">
     <button class="tab" data-tab="venta" data-rol="vendedor">🛒 Vender</button>
     <button class="tab" data-tab="transferencias" data-rol="vendedor">💳 Transferencias</button>
+    <button class="tab" data-tab="creditos" data-rol="vendedor">🏦 Créditos</button>
     <button class="tab" data-tab="auditoria" data-rol="vendedor">📋 Auditoría</button>
     <button class="tab" data-tab="ventas-dia" data-rol="vendedor">🧾 Ventas del día</button>
     <button class="tab" data-tab="productos" data-rol="admin">📦 Productos</button>
@@ -79,10 +80,15 @@
       <span id="banner-transferencia-texto"></span>
       <button id="btn-quitar-transferencia" class="btn btn-chico">Quitar</button>
     </div>
+    <div id="banner-credito" class="banner-transferencia oculto">
+      <span id="banner-credito-texto"></span>
+      <button id="btn-quitar-credito" class="btn btn-chico">Quitar</button>
+    </div>
     <div class="selector-tipo-venta">
       <span class="selector-tipo-venta-label">Tipo de venta:</span>
       <button id="btn-tipo-efectivo" class="btn btn-tipo-venta activo" data-tipo="efectivo">💵 Efectivo</button>
       <button id="btn-tipo-transferencia" class="btn btn-tipo-venta" data-tipo="transferencia">💳 Transferencia</button>
+      <button id="btn-tipo-credito" class="btn btn-tipo-venta" data-tipo="credito">🏦 Crédito</button>
     </div>
     <div class="venta-layout">
       <div class="lista-productos" id="grid-productos-venta">
@@ -138,6 +144,15 @@
     </div>
     <div id="resultados-transferencias" class="lista-transferencias">
       <p class="vacio">Buscar por RUN o nombre para ver transferencias sin usar.</p>
+    </div>
+  </section>
+
+  <!-- ---------- TAB: CRÉDITOS (vendedor) ---------- -->
+  <section id="tab-creditos" class="tab-contenido">
+    <p class="ayuda-tab">Transferencias con saldo a favor que se pueden usar en más de una compra.</p>
+    <button id="btn-actualizar-creditos" class="btn">🔄 Actualizar</button>
+    <div id="lista-creditos" class="lista-transferencias">
+      <p class="vacio">Cargando...</p>
     </div>
   </section>
 

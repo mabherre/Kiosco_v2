@@ -278,6 +278,8 @@ body {
   font-size: 14px;
 }
 
+.ayuda-tab { color: #666; font-size: 13px; margin: 0 0 12px; }
+
 /* ---------- Transferencias (vendedor) ---------- */
 .buscador-transferencias {
   display: flex;

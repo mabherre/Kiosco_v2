@@ -32,14 +32,28 @@ La pestaña **Alumno** de la Google Sheet la carga y mantiene quien administra e
 
 ### Transferencias
 
-El vendedor busca transferencias en una hoja de cálculo externa (compartida por Mabel), sólo entre las filas cuya columna **Estado Pago** está vacía. Al elegir una, queda visible el monto del abono en la pantalla de venta; al registrar la venta, esa fila se marca automáticamente como **Usado** en la columna Estado Pago (no se borra ni se mueve, solo se marca). El administrador ve, en la pestaña Resumen, cuántas transferencias quedan sin usar y la suma de sus montos.
+El vendedor busca transferencias en una hoja de cálculo externa (compartida por Mabel), sólo entre las filas cuya columna **Estado Pago** está vacía. Al elegir una, queda visible el monto del abono en la pantalla de venta; al registrar la venta, esa fila se marca automáticamente como **Usado** en la columna Estado Pago (no se borra ni se mueve, solo se marca), y además queda registrado en la columna **Usuario** de esa misma hoja qué vendedor la usó. El administrador ve, en la pestaña Resumen, cuántas transferencias quedan sin usar y la suma de sus montos.
 
 Para que esto funcione, la cuenta de Google que despliega el Apps Script (la misma que uso para "Ejecutar como: Yo") necesita tener acceso de edición a esa hoja externa de transferencias.
+
+### Créditos
+
+A diferencia de una transferencia común (que se consume entera en una sola venta), un **crédito** es un saldo a favor que se puede usar de a poco, en más de una compra. Vive en la misma hoja externa de transferencias, en dos pestañas propias:
+
+- **CREDITO** (columnas: `id_credito`, `Fecha`, `Documento`, `Movimiento`, `RUN`, `Nombre completo`, `Abono`, `Saldo`, `Usuario`): cada fila es un crédito. La app sólo muestra, en la pestaña **🏦 Créditos**, las filas con `Saldo` mayor a 0.
+- **DETALLE_CREDITO** (columnas: `id_credito`, `Fecha_compra`, `monto`, `Usuario`, `id_boleta`): se agrega una fila cada vez que se usa un crédito en una venta, para dejar constancia de en qué compra y por cuánto se usó.
+
+Uso desde la app: el vendedor entra a la pestaña **🏦 Créditos**, elige uno de la lista y toca **"Usar"** — esto lo vuelve a llevar a la pestaña Vender con el tipo de venta ya puesto en **🏦 Crédito** y un cartel arriba mostrando el nombre, RUN y saldo disponible del crédito elegido. Al registrar la venta:
+
+- Si el total del carrito supera el saldo disponible, el servidor rechaza la venta (y la app avisa antes de mandarla, sin esperar la respuesta del servidor).
+- Si el total es igual o menor al saldo, la venta se registra normalmente (columna `Tipo_venta` = `credito`), se descuenta el monto usado del `Saldo` en la hoja CREDITO, y se agrega una fila en DETALLE_CREDITO con el detalle de esa compra.
+
+Al igual que con transferencias, la cuenta de Google que despliega el Apps Script necesita acceso de edición a esa hoja externa. Nota: como valida el saldo contra el servidor, usar un crédito **requiere conexión** en el momento de registrar la venta (no funciona en modo sin señal).
 
 ### Tipo de venta, IDs e Auditoría
 
 - **IDs:** Productos, Ventas y DetalleVentas usan números enteros correlativos (1, 2, 3...) en vez de códigos largos. Cada ID nuevo es el número más alto que ya existe en esa columna más 1, así que podés reordenar o completar filas a mano en la hoja sin que se rompa nada.
-- **Tipo de venta:** en la pestaña Vender hay dos botones, **💵 Efectivo** y **💳 Transferencia**. Por defecto queda en Efectivo; si el vendedor aplica una transferencia con el botón "Usar" (desde la pestaña Transferencias), cambia solo a Transferencia. Esto se guarda en la columna `Tipo_venta` de la hoja Ventas.
+- **Tipo de venta:** en la pestaña Vender hay tres botones, **💵 Efectivo**, **💳 Transferencia** y **🏦 Crédito**. Por defecto queda en Efectivo; si el vendedor aplica una transferencia o un crédito con el botón "Usar" (desde las pestañas Transferencias o Créditos), cambia solo al tipo correspondiente. Esto se guarda en la columna `Tipo_venta` de la hoja Ventas.
 - **N° de boleta (control físico):** cada venta recibe además un número correlativo propio de cada vendedor, que **reinicia en 1 todos los días** (como un talonario físico). Se guarda en la columna `N° Boleta` de la hoja Ventas (se crea sola, no hace falta agregarla a mano) y se imprime en el ticket, para poder cruzarlo con un control en papel si hace falta. El número real y definitivo siempre lo calcula el servidor. Si la venta se registra sin señal, la app usa un número "provisorio" calculado en el mismo celular (marcado como "(provisoria)" en el ticket) para no dejar la boleta sin numerar; en el enorme mayoría de los casos ese número termina coincidiendo con el definitivo. Al iniciar sesión como vendedor, si hay señal en ese momento, la app se pone al día con el servidor para que el número provisorio arranque bien encaminado. Nota: si el mismo vendedor llega a usar dos celulares distintos el mismo día, los números provisorios de cada uno pueden no coincidir entre sí — para el control oficial, siempre vale el número que quedó escrito en la hoja Ventas, no el impreso.
 - **Sin duplicados aunque falle la conexión:** cada venta lleva además un identificador único generado en el celular (columna `IDCliente`, también se crea sola). Si el pedido llega a registrarse en el servidor pero la respuesta se pierde por corte de señal, la app puede reintentar el envío sin miedo: el servidor reconoce que ya la había recibido y no la registra dos veces.
 - **Auditoría (vendedor):** muestra, solo para el vendedor que tiene la sesión abierta, cuánto vendió hoy en efectivo, cuánto por transferencia, y el detalle de cantidades por producto vendidas hoy. Se actualiza con el botón "🔄 Actualizar" o al abrir la pestaña.
