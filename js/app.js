@@ -873,7 +873,8 @@
     }
     var c = estado.creditoSeleccionado;
     $('banner-credito-texto').textContent =
-      'Crédito de ' + c.nombreCompleto + ' (RUN ' + c.run + ') — Saldo disponible: ' + formatoMoneda(c.saldo);
+      'Crédito de ' + c.nombreCompleto + (c.nombreAlumno ? ' (alumno: ' + c.nombreAlumno + ')' : '') +
+      ' (RUN ' + c.run + ') — Saldo disponible: ' + formatoMoneda(c.saldo);
     banner.classList.remove('oculto');
   }
 
@@ -884,34 +885,49 @@
 
   $('btn-actualizar-creditos').addEventListener('click', cargarCreditos);
 
+  // Se guarda acá la última lista completa de créditos con saldo > 0 (tal
+  // como llega del servidor o de la caché offline), para poder filtrarla
+  // localmente con el buscador sin tener que volver a pedirla cada vez que
+  // el vendedor escribe una letra.
+  var creditosCache_ = [];
+  var creditosActualizadoOffline_ = null;
+
   function cargarCreditos() {
     mostrarCarga('Cargando créditos...');
     DB.obtenerCreditos()
       .then(function (resp) {
-        renderizarResultadosCreditos(resp.creditos || [], resp.actualizado);
+        creditosCache_ = resp.creditos || [];
+        creditosActualizadoOffline_ = resp.actualizado;
+        aplicarBusquedaCreditos_();
       })
       .catch(function (err) { toast('Error al cargar créditos: ' + err.message, true); })
       .then(ocultarCarga);
   }
 
+  // Filtra, sobre la lista ya cargada, por lo que se haya escrito en el
+  // buscador: busca la coincidencia en TODOS los datos del crédito (nombre,
+  // nombre del alumno, RUN, documento, movimiento e id_credito). Si el
+  // buscador está vacío, se muestran todos los créditos con saldo > 0.
+  function aplicarBusquedaCreditos_() {
+    var texto = $('input-buscar-credito').value.trim().toLowerCase();
+    var lista = !texto ? creditosCache_ : creditosCache_.filter(function (c) {
+      return [c.idCredito, c.fecha, c.documento, c.movimiento, c.run, c.nombreCompleto, c.nombreAlumno, c.abono, c.saldo]
+        .some(function (campo) { return String(campo || '').toLowerCase().indexOf(texto) !== -1; });
+    });
+    renderizarResultadosCreditos(lista, creditosActualizadoOffline_);
+  }
+
+  $('input-buscar-credito').addEventListener('input', aplicarBusquedaCreditos_);
+
   // Descuenta localmente (sin esperar un refresco) el monto recién usado del
   // crédito que se acaba de aplicar en una venta, para que la lista mostrada
   // no quede desactualizada. Si el saldo llega a 0, se saca del listado.
   function actualizarCreditoDelListado_(fila, montoUsado) {
-    var cont = $('lista-creditos');
-    var el = cont.querySelector('.transferencia-item[data-fila="' + fila + '"]');
-    if (!el) return;
-    var nuevoSaldo = (Number(el.dataset.saldo) || 0) - (Number(montoUsado) || 0);
-    if (nuevoSaldo <= 0) {
-      el.remove();
-      if (!cont.querySelector('.transferencia-item')) {
-        cont.innerHTML = '<p class="vacio">No hay créditos con saldo disponible.</p>';
-      }
-      return;
-    }
-    el.dataset.saldo = nuevoSaldo;
-    var abonoEl = el.querySelector('.abono');
-    if (abonoEl) abonoEl.textContent = 'Saldo disponible: ' + formatoMoneda(nuevoSaldo);
+    var idx = creditosCache_.findIndex(function (c) { return c.fila === fila; });
+    if (idx === -1) return;
+    creditosCache_[idx].saldo = (Number(creditosCache_[idx].saldo) || 0) - (Number(montoUsado) || 0);
+    if (creditosCache_[idx].saldo <= 0) creditosCache_.splice(idx, 1); // ya no queda saldo: se saca del listado
+    aplicarBusquedaCreditos_();
   }
 
   function renderizarResultadosCreditos(lista, actualizadoOffline) {
@@ -934,12 +950,13 @@
       div.innerHTML =
         '<div class="info">' +
         '<div class="nombre">' + escapeHtml(c.nombreCompleto) + '</div>' +
+        (c.nombreAlumno ? '<div class="detalle">Alumno: ' + escapeHtml(c.nombreAlumno) + '</div>' : '') +
         '<div class="detalle">RUN: ' + escapeHtml(c.run) + (fechaTexto ? ' — ' + fechaTexto : '') + '</div>' +
         '<div class="abono">Saldo disponible: ' + formatoMoneda(c.saldo) + '</div>' +
         '</div>' +
         '<button class="btn btn-primario btn-usar-credito">Usar</button>';
       div.querySelector('.btn-usar-credito').addEventListener('click', function () {
-        estado.creditoSeleccionado = { fila: c.fila, idCredito: c.idCredito, nombreCompleto: c.nombreCompleto, run: c.run, saldo: c.saldo };
+        estado.creditoSeleccionado = { fila: c.fila, idCredito: c.idCredito, nombreCompleto: c.nombreCompleto, nombreAlumno: c.nombreAlumno, run: c.run, saldo: c.saldo };
         estado.tipoVenta = 'credito';
         renderizarBannerCredito();
         renderizarSelectorTipoVenta();
