@@ -40,10 +40,12 @@ Para que esto funcione, la cuenta de Google que despliega el Apps Script (la mis
 
 A diferencia de una transferencia común (que se consume entera en una sola venta), un **crédito** es un saldo a favor que se puede usar de a poco, en más de una compra. Vive en la misma hoja externa de transferencias, en dos pestañas propias:
 
-- **CREDITO** (columnas: `id_credito`, `Fecha`, `Documento`, `Movimiento`, `RUN`, `Nombre completo`, `Abono`, `Saldo`, `Usuario`): cada fila es un crédito. La app sólo muestra, en la pestaña **🏦 Créditos**, las filas con `Saldo` mayor a 0.
+- **CREDITO** (columnas: `id_credito`, `Fecha`, `Documento`, `Movimiento`, `RUN`, `Nombre completo`, `Nombre alumno`, `Abono`, `Saldo`, `Usuario`): cada fila es un crédito. La app siempre muestra, en la pestaña **🏦 Créditos**, todas las filas con `Saldo` mayor a 0.
 - **DETALLE_CREDITO** (columnas: `id_credito`, `Fecha_compra`, `monto`, `Usuario`, `id_boleta`): se agrega una fila cada vez que se usa un crédito en una venta, para dejar constancia de en qué compra y por cuánto se usó.
 
-Uso desde la app: el vendedor entra a la pestaña **🏦 Créditos**, elige uno de la lista y toca **"Usar"** — esto lo vuelve a llevar a la pestaña Vender con el tipo de venta ya puesto en **🏦 Crédito** y un cartel arriba mostrando el nombre, RUN y saldo disponible del crédito elegido. Al registrar la venta:
+La pestaña tiene además un buscador que filtra, sobre esa misma lista, por cualquier dato del crédito (nombre, nombre del alumno, RUN, documento, movimiento o ID); al borrar el texto vuelven a verse todos los créditos con saldo disponible.
+
+Uso desde la app: el vendedor entra a la pestaña **🏦 Créditos**, elige uno de la lista (o lo busca primero) y toca **"Usar"** — esto lo vuelve a llevar a la pestaña Vender con el tipo de venta ya puesto en **🏦 Crédito** y un cartel arriba mostrando el nombre, RUN y saldo disponible del crédito elegido. Al registrar la venta:
 
 - Si el total del carrito supera el saldo disponible, el servidor rechaza la venta (y la app avisa antes de mandarla, sin esperar la respuesta del servidor).
 - Si el total es igual o menor al saldo, la venta se registra normalmente (columna `Tipo_venta` = `credito`), se descuenta el monto usado del `Saldo` en la hoja CREDITO, y se agrega una fila en DETALLE_CREDITO con el detalle de esa compra.
