@@ -65,7 +65,6 @@
 
   <nav class="tabs">
     <button class="tab" data-tab="venta" data-rol="vendedor">🛒 Vender</button>
-    <button class="tab" data-tab="transferencias" data-rol="vendedor">💳 Transferencias</button>
     <button class="tab" data-tab="creditos" data-rol="vendedor">🏦 Créditos</button>
     <button class="tab" data-tab="auditoria" data-rol="vendedor">📋 Auditoría</button>
     <button class="tab" data-tab="ventas-dia" data-rol="vendedor">🧾 Ventas del día</button>
@@ -76,10 +75,6 @@
 
   <!-- ---------- TAB: VENTA ---------- -->
   <section id="tab-venta" class="tab-contenido">
-    <div id="banner-transferencia" class="banner-transferencia oculto">
-      <span id="banner-transferencia-texto"></span>
-      <button id="btn-quitar-transferencia" class="btn btn-chico">Quitar</button>
-    </div>
     <div id="banner-credito" class="banner-transferencia oculto">
       <span id="banner-credito-texto"></span>
       <button id="btn-quitar-credito" class="btn btn-chico">Quitar</button>
@@ -121,6 +116,10 @@
         <div class="resumen-card-valor" id="auditoria-transferencia">-</div>
         <div class="resumen-card-label">Vendido hoy por transferencia</div>
       </div>
+      <div class="resumen-card">
+        <div class="resumen-card-valor" id="auditoria-credito">-</div>
+        <div class="resumen-card-label">Vendido hoy con crédito</div>
+      </div>
     </div>
     <h3>Detalle por producto (hoy)</h3>
     <div id="auditoria-productos" class="lista-auditoria-productos">
@@ -133,17 +132,6 @@
     <button id="btn-actualizar-ventas-dia" class="btn">🔄 Actualizar</button>
     <div id="lista-ventas-dia" class="lista-ventas-dia">
       <p class="vacio">Todavía no hay ventas hoy.</p>
-    </div>
-  </section>
-
-  <!-- ---------- TAB: TRANSFERENCIAS (vendedor) ---------- -->
-  <section id="tab-transferencias" class="tab-contenido">
-    <div class="buscador-transferencias">
-      <input type="text" id="input-buscar-transferencia" placeholder="Buscar por RUN o nombre completo">
-      <button id="btn-buscar-transferencia" class="btn btn-primario">Buscar</button>
-    </div>
-    <div id="resultados-transferencias" class="lista-transferencias">
-      <p class="vacio">Buscar por RUN o nombre para ver transferencias sin usar.</p>
     </div>
   </section>
 
