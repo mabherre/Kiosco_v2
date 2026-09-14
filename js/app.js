@@ -8,7 +8,6 @@
     usuario: null,
     productos: [],
     carrito: {}, // { productoId: { producto, cantidad } }
-    transferenciaSeleccionada: null, // { fila, fecha, run, nombreCompleto, abono }
     creditoSeleccionado: null, // { fila, idCredito, nombreCompleto, run, saldo }
     tipoVenta: 'efectivo', // 'efectivo' | 'transferencia' | 'credito'
     alumnoActual: null, // { fila, apellidoMaterno } - credenciales del vendedor logueado
@@ -91,7 +90,6 @@
     actualizarBadgeImpresora();
     intentarSincronizar(true);
     if (rol === 'vendedor') {
-      refrescarCacheTransferencias();
       // Si hay señal en este momento, se pone al día el contador local de
       // N° de boleta (ver más abajo), para que arranque en el número real
       // en vez de siempre desde cero.
@@ -248,7 +246,6 @@
     var contenido = $('tab-' + nombreTab);
     if (contenido) contenido.classList.add('activa');
     if (nombreTab === 'resumen') cargarResumenTransferencias();
-    if (nombreTab === 'transferencias') refrescarCacheTransferencias();
     if (nombreTab === 'auditoria') cargarAuditoria();
     if (nombreTab === 'ventas-dia') cargarVentasDelDia();
     if (nombreTab === 'recaudacion') cargarRecaudacion();
@@ -385,9 +382,6 @@
       // para entonces haya iniciado sesión otro vendedor en el celular.
       alumno: estado.alumnoActual
     };
-    if (estado.transferenciaSeleccionada) {
-      venta.transferenciaFila = estado.transferenciaSeleccionada.fila;
-    }
     if (estado.tipoVenta === 'credito' && estado.creditoSeleccionado) {
       venta.creditoFila = estado.creditoSeleccionado.fila;
     }
@@ -423,15 +417,12 @@
   }
 
   function finalizarVentaExitosa(venta, pendienteDeSincronizar) {
-    if (venta.transferenciaFila) quitarTransferenciaDelListado_(venta.transferenciaFila);
     if (venta.creditoFila) actualizarCreditoDelListado_(venta.creditoFila, venta.total);
     estado.carrito = {};
-    estado.transferenciaSeleccionada = null;
     estado.creditoSeleccionado = null;
     estado.tipoVenta = 'efectivo';
     renderizarProductosVenta();
     renderizarCarrito();
-    renderizarBannerTransferencia();
     renderizarBannerCredito();
     renderizarSelectorTipoVenta();
     mostrarVentaExito(venta, pendienteDeSincronizar);
@@ -765,106 +756,10 @@
   $('btn-tipo-transferencia').addEventListener('click', function () { elegirTipoVenta('transferencia'); });
   $('btn-tipo-credito').addEventListener('click', function () { elegirTipoVenta('credito'); });
 
-  /* ---------- Transferencias (vendedor) ---------- */
-  function renderizarBannerTransferencia() {
-    var banner = $('banner-transferencia');
-    if (!estado.transferenciaSeleccionada) {
-      banner.classList.add('oculto');
-      return;
-    }
-    var t = estado.transferenciaSeleccionada;
-    $('banner-transferencia-texto').textContent =
-      'Transferencia de ' + t.nombreCompleto + ' (RUN ' + t.run + ') — Abono disponible: ' + formatoMoneda(t.abono);
-    banner.classList.remove('oculto');
-  }
-
-  $('btn-quitar-transferencia').addEventListener('click', function () {
-    estado.transferenciaSeleccionada = null;
-    renderizarBannerTransferencia();
-  });
-
-  $('btn-buscar-transferencia').addEventListener('click', buscarTransferencias);
-  $('input-buscar-transferencia').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') buscarTransferencias();
-  });
-
-  function buscarTransferencias() {
-    var texto = $('input-buscar-transferencia').value.trim();
-    if (!texto) return;
-    mostrarCarga('Buscando...');
-    DB.buscarTransferencias(texto)
-      .then(function (resp) { renderizarResultadosTransferencias(resp.transferencias || [], null); })
-      .catch(function (err) {
-        if (err.esErrorDeRed) {
-          // Sin señal: buscamos en la última copia guardada.
-          var enCache = DB.buscarTransferenciasEnCache(texto);
-          renderizarResultadosTransferencias(enCache.transferencias, enCache.actualizado);
-          return;
-        }
-        toast('Error al buscar transferencias: ' + err.message, true);
-      })
-      .then(ocultarCarga);
-  }
-
-  // Trae la lista completa de transferencias sin usar y la guarda local,
-  // para que la búsqueda offline tenga datos lo más frescos posible.
-  // Se hace "en silencio": si falla (sin señal), no molesta con un error.
-  function refrescarCacheTransferencias() {
-    DB.obtenerTransferenciasSinUsar().catch(function () {});
-  }
-
-  // Saca del listado ya mostrado (sin esperar a un refresco) la transferencia
-  // que se acaba de usar en una venta, para que no siga apareciendo como
-  // disponible hasta que alguien busque de nuevo.
-  function quitarTransferenciaDelListado_(fila) {
-    if (!fila) return;
-    var cont = $('resultados-transferencias');
-    var el = cont.querySelector('.transferencia-item[data-fila="' + fila + '"]');
-    if (el) el.remove();
-    if (!cont.querySelector('.transferencia-item') && !cont.querySelector('.vacio')) {
-      cont.innerHTML += '<p class="vacio">No se encontraron transferencias sin usar con ese dato.</p>';
-    }
-  }
-
-  function renderizarResultadosTransferencias(lista, actualizadoOffline) {
-    var cont = $('resultados-transferencias');
-    var avisoOffline = actualizadoOffline
-      ? '<p class="aviso-offline">⚠️ Sin conexión: mostrando datos guardados el ' +
-        new Date(actualizadoOffline).toLocaleString() + '. Pueden estar desactualizados.</p>'
-      : '';
-    if (!lista.length) {
-      cont.innerHTML = avisoOffline + '<p class="vacio">No se encontraron transferencias sin usar con ese dato.</p>';
-      return;
-    }
-    cont.innerHTML = avisoOffline;
-    lista.forEach(function (t) {
-      var div = document.createElement('div');
-      div.className = 'transferencia-item';
-      div.dataset.fila = t.fila;
-      var fechaTexto = t.fecha ? new Date(t.fecha).toLocaleDateString() : '';
-      div.innerHTML =
-        '<div class="info">' +
-        '<div class="nombre">' + escapeHtml(t.nombreCompleto) + '</div>' +
-        '<div class="detalle">RUN: ' + escapeHtml(t.run) + (fechaTexto ? ' — ' + fechaTexto : '') + '</div>' +
-        '<div class="abono">Abono: ' + formatoMoneda(t.abono) + '</div>' +
-        '</div>' +
-        '<button class="btn btn-primario btn-usar-transferencia">Usar</button>';
-      div.querySelector('.btn-usar-transferencia').addEventListener('click', function () {
-        estado.transferenciaSeleccionada = t;
-        estado.tipoVenta = 'transferencia';
-        renderizarBannerTransferencia();
-        renderizarSelectorTipoVenta();
-        activarTab('venta');
-      });
-      cont.appendChild(div);
-    });
-  }
-
   /* ---------- Créditos (vendedor) ---------- */
-  // Transferencias con saldo a favor que se pueden usar en más de una
-  // compra (a diferencia de una transferencia común, que se consume entera
-  // en una sola venta). Se muestran directamente todas las que tengan
-  // saldo > 0, sin buscador (se espera que sean pocas).
+  // Transferencias con saldo a favor, que se pueden usar de a poco en más
+  // de una compra. Se muestran siempre todas las que tengan saldo > 0, con
+  // un buscador opcional para filtrar por cualquier dato del crédito.
   function renderizarBannerCredito() {
     var banner = $('banner-credito');
     if (!estado.creditoSeleccionado) {
@@ -987,6 +882,7 @@
       .then(function (resp) {
         $('auditoria-efectivo').textContent = formatoMoneda(resp.totalEfectivo || 0);
         $('auditoria-transferencia').textContent = formatoMoneda(resp.totalTransferencia || 0);
+        $('auditoria-credito').textContent = formatoMoneda(resp.totalCredito || 0);
         var cont = $('auditoria-productos');
         var productos = resp.productos || [];
         if (!productos.length) {
