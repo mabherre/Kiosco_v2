@@ -86,6 +86,15 @@ body {
 .login-box select:disabled { color: #999; background: var(--gris-fondo); }
 .login-box .btn { width: 100%; margin-top: 10px; }
 
+/* ---------- Botón "ver contraseña" en los campos de clave del login ---------- */
+.campo-clave { position: relative; margin: 14px 0; }
+.campo-clave input { padding-right: 46px !important; margin: 0 !important; }
+.btn-toggle-clave {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; font-size: 20px; line-height: 1; padding: 8px;
+  cursor: pointer;
+}
+
 /* ---------- Badge de pendientes / aviso offline ---------- */
 .badge {
   background: var(--rojo);

@@ -29,7 +29,7 @@ var TOKEN_APP = 'kioscoAppSecreto2026';
 var CLAVE_ADMIN = 'kiosco2026';
 
 // Acciones que sólo puede hacer un Administrador (requieren CLAVE_ADMIN).
-var ACCIONES_SOLO_ADMIN = ['agregarProducto', 'actualizarProducto', 'eliminarProducto', 'recaudacionPorVendedorYDia', 'agregarCredito'];
+var ACCIONES_SOLO_ADMIN = ['agregarProducto', 'actualizarProducto', 'eliminarProducto', 'recaudacionPorVendedorYDia', 'agregarCredito', 'obtenerCreditosAdmin', 'editarCredito', 'eliminarCredito'];
 // Acciones que sólo puede hacer un Vendedor. En vez de una clave
 // compartida, cada pedido tiene que traer data.alumno = {fila, apellidoMaterno}
 // y se valida contra la hoja Alumno (ver validarAlumno_).
@@ -143,6 +143,15 @@ function doPost(e) {
         break;
       case 'agregarCredito':
         resultado = agregarCredito(data);
+        break;
+      case 'obtenerCreditosAdmin':
+        resultado = obtenerCreditosAdmin();
+        break;
+      case 'editarCredito':
+        resultado = editarCredito(data);
+        break;
+      case 'eliminarCredito':
+        resultado = eliminarCredito(data);
         break;
       default:
         return respond({ ok: false, error: 'Acción POST no reconocida: ' + accion });
@@ -540,10 +549,24 @@ function registrarVenta(data) {
     // alcanza, no queda una venta a medio registrar.
     var creditoSheet = null;
     var creditoInfo = null;
-    if (data.creditoFila) {
+    if (data.creditoFila || data.creditoId) {
       creditoSheet = getCreditoSheet_();
-      var filaCredito = Number(data.creditoFila);
       var idxSaldoCredito = indiceColumna_(creditoSheet, 'Saldo');
+      var idxIdCreditoCredito = indiceColumna_(creditoSheet, 'id_credito');
+
+      // El id_credito no cambia nunca, a diferencia del número de fila (que
+      // el celular guarda en caché desde que se cargó la lista de créditos,
+      // y puede quedar desactualizado si alguien inserta, borra o reordena
+      // filas a mano en la hoja CREDITO mientras tanto). Por eso, si viene
+      // el id_credito, se recalcula ACÁ la fila real en el momento de
+      // registrar la venta, en vez de confiar en la que mandó el celular:
+      // así el descuento de saldo siempre cae en el crédito correcto.
+      var filaCredito = Number(data.creditoFila) || 0;
+      if (data.creditoId && idxIdCreditoCredito > 0) {
+        var filaReal = buscarFilaPorIdCredito_(creditoSheet, idxIdCreditoCredito, data.creditoId);
+        if (filaReal) filaCredito = filaReal;
+      }
+
       var saldoActual = (idxSaldoCredito > 0 && filaCredito > 1)
         ? (Number(creditoSheet.getRange(filaCredito, idxSaldoCredito).getValue()) || 0)
         : 0;
@@ -1029,11 +1052,20 @@ function obtenerCreditos() {
   var idxNombreAlumno = indiceEnLista_(encabezados, ['Nombre alumno']);
   var idxAbono = indiceEnLista_(encabezados, ['Abono']);
   var idxSaldo = indiceEnLista_(encabezados, ['Saldo']);
+  var idxUsuario = indiceEnLista_(encabezados, ['Usuario']);
+  var idxEstado = indiceEnLista_(encabezados, ['Estado']);
 
   var valores = sheet.getDataRange().getValues();
   var creditos = [];
   for (var i = 1; i < valores.length; i++) {
     var fila = valores[i];
+
+    // Baja lógica: si Estado quedó en false (por "Eliminar" desde el
+    // Administrador), esa fila no se borra de la hoja (queda como
+    // historial), pero deja de verse en la app.
+    var estadoCelda = idxEstado > 0 ? fila[idxEstado - 1] : true;
+    if (estadoCelda === false || String(estadoCelda).trim().toUpperCase() === 'FALSE') continue;
+
     var saldo = idxSaldo > 0 ? (Number(fila[idxSaldo - 1]) || 0) : 0;
     if (saldo <= 0) continue; // sólo los que todavía tienen saldo disponible
 
@@ -1048,7 +1080,8 @@ function obtenerCreditos() {
       nombreCompleto: idxNombre > 0 ? String(fila[idxNombre - 1] || '') : '',
       nombreAlumno: idxNombreAlumno > 0 ? String(fila[idxNombreAlumno - 1] || '') : '',
       abono: idxAbono > 0 ? (Number(fila[idxAbono - 1]) || 0) : 0,
-      saldo: saldo
+      saldo: saldo,
+      usuario: idxUsuario > 0 ? String(fila[idxUsuario - 1] || '') : ''
     });
   }
   return { creditos: creditos };
@@ -1099,6 +1132,101 @@ function agregarCredito(data) {
     sheet.appendRow(fila);
 
     return { idCredito: idCredito, fecha: fecha.toISOString() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Igual que obtenerCreditos(), pero para que la vea el Administrador (desde
+// la pestaña "Agregar Crédito", para poder cerciorarse de que un registro
+// nuevo quedó bien cargado). Es una acción aparte porque obtenerCreditos()
+// exige credenciales de Vendedor (data.alumno); ésta exige clave de
+// Administrador en su lugar.
+function obtenerCreditosAdmin() {
+  return obtenerCreditos();
+}
+
+// Busca, dentro de la columna id_credito de CREDITO, la fila que tiene ese
+// id (recorriendo la hoja tal como está AHORA). El id_credito es estable
+// (no cambia), a diferencia del número de fila, que puede correrse si
+// alguien inserta, borra o reordena filas a mano en la hoja. Se usa en
+// registrarVenta() para ubicar siempre la fila correcta al momento de
+// descontar el saldo, sin depender de una fila cacheada de antes en el
+// celular del vendedor. Devuelve el número de fila (1-based) o 0 si no la
+// encuentra.
+function buscarFilaPorIdCredito_(sheet, idxIdCredito, idCredito) {
+  var filasDeDatos = sheet.getLastRow() - 1;
+  if (filasDeDatos < 1) return 0;
+  var columna = sheet.getRange(2, idxIdCredito, filasDeDatos, 1).getValues();
+  for (var i = 0; i < columna.length; i++) {
+    if (String(columna[i][0]) === String(idCredito)) return i + 2;
+  }
+  return 0;
+}
+
+// Corrige un crédito ya cargado (Administrador): Nombre Apoderado, Nombre
+// Alumno(s) y/o Monto Crédito. "fila" es el número real de fila en CREDITO
+// que ya trae cada crédito en la lista (obtenerCreditos/obtenerCreditosAdmin).
+// Si se cambia el Monto Crédito, el Saldo se recalcula respetando lo que ya
+// se haya usado de ese crédito (no se le "regala" de vuelta lo ya gastado):
+// nuevoSaldo = nuevoMonto - (abonoAnterior - saldoAnterior), sin bajar de 0.
+function editarCredito(data) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sheet = getCreditoSheet_();
+    var fila = Number(data.fila);
+    if (!fila || fila < 2 || fila > sheet.getLastRow()) {
+      return { autorizado: false, error: 'Crédito no encontrado.' };
+    }
+
+    var nombreCompleto = String(data.nombreCompleto || '').trim();
+    var nombreAlumno = String(data.nombreAlumno || '').trim();
+    var monto = Number(data.monto);
+    if (!nombreCompleto) return { autorizado: false, error: 'Falta el Nombre Apoderado.' };
+    if (!nombreAlumno) return { autorizado: false, error: 'Falta el Nombre Alumno(s).' };
+    if (!monto || monto <= 0) return { autorizado: false, error: 'El Monto Crédito tiene que ser mayor a 0.' };
+
+    var encabezados = leerEncabezados_(sheet, 1);
+    var idxNombre = indiceEnLista_(encabezados, ['Nombre completo']);
+    var idxNombreAlumno = indiceEnLista_(encabezados, ['Nombre alumno']);
+    var idxAbono = indiceEnLista_(encabezados, ['Abono']);
+    var idxSaldo = indiceEnLista_(encabezados, ['Saldo']);
+
+    var abonoAnterior = idxAbono > 0 ? (Number(sheet.getRange(fila, idxAbono).getValue()) || 0) : 0;
+    var saldoAnterior = idxSaldo > 0 ? (Number(sheet.getRange(fila, idxSaldo).getValue()) || 0) : 0;
+    var usado = abonoAnterior - saldoAnterior;
+    var nuevoSaldo = Math.max(0, monto - usado);
+
+    if (idxNombre > 0) sheet.getRange(fila, idxNombre).setValue(nombreCompleto);
+    if (idxNombreAlumno > 0) sheet.getRange(fila, idxNombreAlumno).setValue(nombreAlumno);
+    if (idxAbono > 0) sheet.getRange(fila, idxAbono).setValue(monto);
+    if (idxSaldo > 0) sheet.getRange(fila, idxSaldo).setValue(nuevoSaldo);
+
+    return { actualizado: true, saldo: nuevoSaldo };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Baja lógica de un crédito (Administrador): no borra la fila de la hoja
+// (se conserva como historial), sólo marca su columna "Estado" en false, y
+// desde ese momento deja de aparecer tanto para el Vendedor (pestaña
+// Créditos) como para el Administrador (lista de "Créditos con saldo
+// disponible"). La columna "Estado" se agrega sola la primera vez que hace
+// falta (no hay que crearla a mano en la hoja).
+function eliminarCredito(data) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sheet = getCreditoSheet_();
+    var fila = Number(data.fila);
+    if (!fila || fila < 2 || fila > sheet.getLastRow()) {
+      return { autorizado: false, error: 'Crédito no encontrado.' };
+    }
+    var idxEstado = agregarColumnaSiFalta_(sheet, 'Estado');
+    sheet.getRange(fila, idxEstado).setValue(false);
+    return { eliminado: true };
   } finally {
     lock.releaseLock();
   }

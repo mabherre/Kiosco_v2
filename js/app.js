@@ -408,6 +408,12 @@
     };
     if (estado.tipoVenta === 'credito' && estado.creditoSeleccionado) {
       venta.creditoFila = estado.creditoSeleccionado.fila;
+      // El id_credito es estable (no cambia aunque se corran las filas de la
+      // hoja CREDITO); se manda además de la fila para que el servidor pueda
+      // ubicar la fila correcta al momento de descontar el saldo, en vez de
+      // confiar únicamente en un número de fila que pudo haber quedado
+      // desactualizado desde que se cargó la lista en el celular.
+      venta.creditoId = estado.creditoSeleccionado.idCredito;
     }
 
     // Se calcula ya mismo el N° de boleta "provisorio" de esta venta (ver
@@ -784,8 +790,6 @@
         $('credito-nombre-apoderado').value = '';
         $('credito-nombre-alumno').value = '';
         $('credito-monto').value = '';
-        // Se refresca la lista de abajo para que el administrador vea de
-        // inmediato que el crédito recién cargado quedó bien registrado.
         cargarCreditosAdmin();
       })
       .catch(function (err) { toast('Error al guardar el crédito: ' + err.message, true); })
@@ -795,11 +799,6 @@
   $('btn-actualizar-creditos-admin').addEventListener('click', cargarCreditosAdmin);
   $('input-buscar-credito-admin').addEventListener('input', aplicarBusquedaCreditosAdmin_);
 
-  // Lista de sólo lectura (sin botón "Usar") para que el Administrador pueda
-  // ver los créditos con saldo disponible y cerciorarse de que un registro
-  // nuevo se cargó correctamente. Se guarda la última lista completa para
-  // poder filtrarla localmente con el buscador, igual que en la pestaña de
-  // Créditos del Vendedor.
   var creditosAdminCache_ = [];
 
   function cargarCreditosAdmin() {
