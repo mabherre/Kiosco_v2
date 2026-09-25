@@ -250,6 +250,7 @@
     if (nombreTab === 'ventas-dia') cargarVentasDelDia();
     if (nombreTab === 'recaudacion') cargarRecaudacion();
     if (nombreTab === 'creditos') cargarCreditos();
+    if (nombreTab === 'agregar-credito') cargarCreditosAdmin();
   }
 
   document.querySelectorAll('.tab').forEach(function (btn) {
@@ -760,10 +761,50 @@
         $('credito-nombre-apoderado').value = '';
         $('credito-nombre-alumno').value = '';
         $('credito-monto').value = '';
+        // Se refresca la lista de abajo para que el administrador vea de
+        // inmediato que el crédito recién cargado quedó bien registrado.
+        cargarCreditosAdmin();
       })
       .catch(function (err) { toast('Error al guardar el crédito: ' + err.message, true); })
       .then(ocultarCarga);
   });
+
+  $('btn-actualizar-creditos-admin').addEventListener('click', cargarCreditosAdmin);
+
+  // Lista de sólo lectura (sin botón "Usar") para que el Administrador pueda
+  // ver los créditos con saldo disponible y cerciorarse de que un registro
+  // nuevo se cargó correctamente.
+  function cargarCreditosAdmin() {
+    mostrarCarga('Cargando créditos...');
+    DB.obtenerCreditosAdmin()
+      .then(function (resp) {
+        renderizarCreditosAdmin(resp.creditos || []);
+      })
+      .catch(function (err) { toast('Error al cargar créditos: ' + err.message, true); })
+      .then(ocultarCarga);
+  }
+
+  function renderizarCreditosAdmin(lista) {
+    var cont = $('lista-creditos-admin');
+    if (!lista.length) {
+      cont.innerHTML = '<p class="vacio">No hay créditos con saldo disponible.</p>';
+      return;
+    }
+    cont.innerHTML = '';
+    lista.forEach(function (c) {
+      var div = document.createElement('div');
+      div.className = 'transferencia-item';
+      var fechaTexto = c.fecha ? new Date(c.fecha).toLocaleString() : '';
+      div.innerHTML =
+        '<div class="info">' +
+        '<div class="nombre">' + escapeHtml(c.nombreCompleto) + '</div>' +
+        (c.nombreAlumno ? '<div class="detalle">Alumno: ' + escapeHtml(c.nombreAlumno) + '</div>' : '') +
+        '<div class="detalle">ID crédito: ' + escapeHtml(String(c.idCredito)) + (fechaTexto ? ' — ' + fechaTexto : '') + (c.usuario ? ' — Cargado por: ' + escapeHtml(c.usuario) : '') + '</div>' +
+        '<div class="abono">Saldo disponible: ' + formatoMoneda(c.saldo) + ' de ' + formatoMoneda(c.abono) + '</div>' +
+        '</div>';
+      cont.appendChild(div);
+    });
+  }
 
   /* ---------- Selector de tipo de venta (efectivo / transferencia / crédito) ---------- */
   function renderizarSelectorTipoVenta() {

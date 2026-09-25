@@ -197,6 +197,13 @@ var DB = (function () {
       return llamarBackend('agregarCredito', Object.assign({ claveAdmin: CONFIG.CLAVE_ADMIN }, credito));
     },
 
+    // Sólo Administrador: lista los créditos con saldo disponible, para
+    // poder revisarlos desde la pestaña "Agregar Crédito" (por ejemplo,
+    // para confirmar que uno recién cargado quedó bien).
+    obtenerCreditosAdmin: function () {
+      return llamarBackend('obtenerCreditosAdmin', { claveAdmin: CONFIG.CLAVE_ADMIN });
+    },
+
     // Credenciales del alumno logueado como Vendedor (ver arriba). Hay que
     // llamarla apenas se loguea (o al restaurar sesión), antes de usar
     // cualquiera de las acciones de vendedor de más abajo.
