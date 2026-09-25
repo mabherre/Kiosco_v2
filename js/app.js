@@ -116,6 +116,22 @@
     $('login-paso-rol').classList.remove('oculto');
   });
 
+  // Botón "ver contraseña" (👁️/🙈) de los campos de clave del login, tanto
+  // para el Apellido Materno del Vendedor como para la Clave del Administrador.
+  function alternarVerClave_(inputId, btnId) {
+    var input = $(inputId);
+    var btn = $(btnId);
+    var mostrando = input.type === 'text';
+    input.type = mostrando ? 'password' : 'text';
+    btn.textContent = mostrando ? '👁️' : '🙈';
+  }
+  $('btn-ver-clave-vendedor').addEventListener('click', function () {
+    alternarVerClave_('input-apellido-materno', 'btn-ver-clave-vendedor');
+  });
+  $('btn-ver-clave-admin').addEventListener('click', function () {
+    alternarVerClave_('input-clave-admin', 'btn-ver-clave-admin');
+  });
+
   // Paso 2a: elegir curso y alumno (llena los selects del login de Vendedor)
   function cargarAlumnosLogin() {
     var selectCurso = $('select-curso-vendedor');
@@ -826,10 +842,65 @@
         (c.nombreAlumno ? '<div class="detalle">Alumno: ' + escapeHtml(c.nombreAlumno) + '</div>' : '') +
         '<div class="detalle">ID crédito: ' + escapeHtml(String(c.idCredito)) + (fechaTexto ? ' — ' + fechaTexto : '') + (c.usuario ? ' — Cargado por: ' + escapeHtml(c.usuario) : '') + '</div>' +
         '<div class="abono">Saldo disponible: ' + formatoMoneda(c.saldo) + ' de ' + formatoMoneda(c.abono) + '</div>' +
-        '</div>';
+        '</div>' +
+        '<button class="btn btn-chico btn-editar">Editar</button>';
+      div.querySelector('.btn-editar').addEventListener('click', function () { abrirModalCredito(c); });
       cont.appendChild(div);
     });
   }
+
+  /* ---------- Editar / eliminar crédito (admin) ---------- */
+  function abrirModalCredito(credito) {
+    $('modal-credito-error').classList.add('oculto');
+    $('credito-edit-fila').value = credito.fila;
+    $('credito-edit-nombre-apoderado').value = credito.nombreCompleto;
+    $('credito-edit-nombre-alumno').value = credito.nombreAlumno;
+    $('credito-edit-monto').value = credito.abono;
+    $('modal-credito').classList.remove('oculto');
+  }
+
+  $('btn-cancelar-credito-edit').addEventListener('click', function () {
+    $('modal-credito').classList.add('oculto');
+  });
+
+  $('btn-guardar-credito-edit').addEventListener('click', function () {
+    var fila = $('credito-edit-fila').value;
+    var nombreApoderado = $('credito-edit-nombre-apoderado').value.trim();
+    var nombreAlumno = $('credito-edit-nombre-alumno').value.trim();
+    var monto = parseFloat($('credito-edit-monto').value);
+
+    if (!nombreApoderado || !nombreAlumno || isNaN(monto) || monto <= 0) {
+      $('modal-credito-error').textContent = 'Completá el Nombre Apoderado, el Nombre Alumno(s) y un Monto Crédito válido (mayor a 0).';
+      $('modal-credito-error').classList.remove('oculto');
+      return;
+    }
+    $('modal-credito-error').classList.add('oculto');
+
+    mostrarCarga('Guardando cambios...');
+    DB.editarCredito({ fila: fila, nombreCompleto: nombreApoderado, nombreAlumno: nombreAlumno, monto: monto })
+      .then(function () {
+        toast('Crédito actualizado.');
+        $('modal-credito').classList.add('oculto');
+        cargarCreditosAdmin();
+      })
+      .catch(function (err) { toast('Error al guardar: ' + err.message, true); })
+      .then(ocultarCarga);
+  });
+
+  $('btn-eliminar-credito-edit').addEventListener('click', function () {
+    var fila = $('credito-edit-fila').value;
+    if (!fila) return;
+    if (!confirm('¿Eliminar este crédito? No se borra de la hoja (queda como historial), pero deja de verse en la app tanto para el Administrador como para el Vendedor.')) return;
+    mostrarCarga('Eliminando...');
+    DB.eliminarCredito(fila)
+      .then(function () {
+        toast('Crédito eliminado.');
+        $('modal-credito').classList.add('oculto');
+        cargarCreditosAdmin();
+      })
+      .catch(function (err) { toast('Error al eliminar: ' + err.message, true); })
+      .then(ocultarCarga);
+  });
 
   /* ---------- Selector de tipo de venta (efectivo / transferencia / crédito) ---------- */
   function renderizarSelectorTipoVenta() {

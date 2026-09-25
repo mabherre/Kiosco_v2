@@ -204,6 +204,19 @@ var DB = (function () {
       return llamarBackend('obtenerCreditosAdmin', { claveAdmin: CONFIG.CLAVE_ADMIN });
     },
 
+    // Sólo Administrador: corrige Nombre Apoderado, Nombre Alumno(s) y/o
+    // Monto Crédito de un crédito ya cargado. "fila" es el número de fila en
+    // CREDITO que trae cada crédito devuelto por obtenerCreditosAdmin.
+    editarCredito: function (credito) {
+      return llamarBackend('editarCredito', Object.assign({ claveAdmin: CONFIG.CLAVE_ADMIN }, credito));
+    },
+
+    // Sólo Administrador: da de baja un crédito (no se borra de la hoja,
+    // sólo deja de verse en la app). "fila" es el número de fila en CREDITO.
+    eliminarCredito: function (fila) {
+      return llamarBackend('eliminarCredito', { claveAdmin: CONFIG.CLAVE_ADMIN, fila: fila });
+    },
+
     // Credenciales del alumno logueado como Vendedor (ver arriba). Hay que
     // llamarla apenas se loguea (o al restaurar sesión), antes de usar
     // cualquiera de las acciones de vendedor de más abajo.
