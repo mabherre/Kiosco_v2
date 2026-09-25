@@ -29,7 +29,7 @@ var TOKEN_APP = 'kioscoAppSecreto2026';
 var CLAVE_ADMIN = 'kiosco2026';
 
 // Acciones que sólo puede hacer un Administrador (requieren CLAVE_ADMIN).
-var ACCIONES_SOLO_ADMIN = ['agregarProducto', 'actualizarProducto', 'eliminarProducto', 'recaudacionPorVendedorYDia'];
+var ACCIONES_SOLO_ADMIN = ['agregarProducto', 'actualizarProducto', 'eliminarProducto', 'recaudacionPorVendedorYDia', 'agregarCredito'];
 // Acciones que sólo puede hacer un Vendedor. En vez de una clave
 // compartida, cada pedido tiene que traer data.alumno = {fila, apellidoMaterno}
 // y se valida contra la hoja Alumno (ver validarAlumno_).
@@ -140,6 +140,9 @@ function doPost(e) {
         break;
       case 'obtenerCreditos':
         resultado = obtenerCreditos();
+        break;
+      case 'agregarCredito':
+        resultado = agregarCredito(data);
         break;
       default:
         return respond({ ok: false, error: 'Acción POST no reconocida: ' + accion });
@@ -676,6 +679,7 @@ function auditoriaDelDia(data) {
   var idsVentasDeHoy = {};
   var totalEfectivo = 0;
   var totalTransferencia = 0;
+  var totalCredito = 0;
 
   for (var i = 1; i < valoresVentas.length; i++) {
     var fila = valoresVentas[i];
@@ -687,6 +691,7 @@ function auditoriaDelDia(data) {
     var total = idxTotal > 0 ? (Number(fila[idxTotal - 1]) || 0) : 0;
     var tipo = idxTipoVenta > 0 ? String(fila[idxTipoVenta - 1] || '').toLowerCase() : 'efectivo';
     if (tipo === 'transferencia') totalTransferencia += total;
+    else if (tipo === 'credito') totalCredito += total;
     else totalEfectivo += total;
 
     var idVenta = idxId > 0 ? String(fila[idxId - 1]) : '';
@@ -724,6 +729,7 @@ function auditoriaDelDia(data) {
   return {
     totalEfectivo: totalEfectivo,
     totalTransferencia: totalTransferencia,
+    totalCredito: totalCredito,
     productos: detalleProductos
   };
 }
@@ -1016,8 +1022,11 @@ function obtenerCreditos() {
   var encabezados = leerEncabezados_(sheet, 1);
   var idxIdCredito = indiceEnLista_(encabezados, ['id_credito']);
   var idxFecha = indiceEnLista_(encabezados, ['Fecha']);
+  var idxDocumento = indiceEnLista_(encabezados, ['Documento']);
+  var idxMovimiento = indiceEnLista_(encabezados, ['Movimiento']);
   var idxRUN = indiceEnLista_(encabezados, ['RUN']);
   var idxNombre = indiceEnLista_(encabezados, ['Nombre completo']);
+  var idxNombreAlumno = indiceEnLista_(encabezados, ['Nombre alumno']);
   var idxAbono = indiceEnLista_(encabezados, ['Abono']);
   var idxSaldo = indiceEnLista_(encabezados, ['Saldo']);
 
@@ -1033,13 +1042,66 @@ function obtenerCreditos() {
       fila: i + 1, // número real de la fila en CREDITO, para poder usarlo y descontarle después
       idCredito: idxIdCredito > 0 ? fila[idxIdCredito - 1] : '',
       fecha: (fechaCelda instanceof Date) ? fechaCelda.toISOString() : String(fechaCelda || ''),
+      documento: idxDocumento > 0 ? String(fila[idxDocumento - 1] || '') : '',
+      movimiento: idxMovimiento > 0 ? String(fila[idxMovimiento - 1] || '') : '',
       run: idxRUN > 0 ? String(fila[idxRUN - 1] || '') : '',
       nombreCompleto: idxNombre > 0 ? String(fila[idxNombre - 1] || '') : '',
+      nombreAlumno: idxNombreAlumno > 0 ? String(fila[idxNombreAlumno - 1] || '') : '',
       abono: idxAbono > 0 ? (Number(fila[idxAbono - 1]) || 0) : 0,
       saldo: saldo
     });
   }
   return { creditos: creditos };
+}
+
+// Agrega un crédito nuevo a mano (Administrador), por ejemplo cuando llega
+// una transferencia que se va a ir usando de a poco en varias compras.
+// El id_credito es correlativo (máximo existente + 1, igual que Productos o
+// Ventas), la Fecha la pone el servidor, y el Saldo arranca igual al Abono
+// (todavía no se usó nada de ese crédito).
+function agregarCredito(data) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sheet = getCreditoSheet_();
+
+    var nombreCompleto = String(data.nombreCompleto || '').trim();
+    var nombreAlumno = String(data.nombreAlumno || '').trim();
+    var monto = Number(data.monto);
+
+    if (!nombreCompleto) return { autorizado: false, error: 'Falta el Nombre Apoderado.' };
+    if (!nombreAlumno) return { autorizado: false, error: 'Falta el Nombre Alumno(s).' };
+    if (!monto || monto <= 0) return { autorizado: false, error: 'El Monto Crédito tiene que ser mayor a 0.' };
+
+    var encabezados = leerEncabezados_(sheet, 1);
+    var idxIdCredito = indiceEnLista_(encabezados, ['id_credito']);
+    var idxFecha = indiceEnLista_(encabezados, ['Fecha']);
+    var idxNombre = indiceEnLista_(encabezados, ['Nombre completo']);
+    var idxNombreAlumno = indiceEnLista_(encabezados, ['Nombre alumno']);
+    var idxAbono = indiceEnLista_(encabezados, ['Abono']);
+    var idxSaldo = indiceEnLista_(encabezados, ['Saldo']);
+    // Se agrega sola si todavía no existe, igual que en registrarVenta().
+    var idxUsuario = agregarColumnaSiFalta_(sheet, 'Usuario');
+
+    // El id_credito vive en la columna A de esta hoja (igual que el ID de
+    // Productos/Ventas), así que siguienteId_() lo puede calcular igual.
+    var idCredito = siguienteId_(sheet);
+    var fecha = new Date();
+
+    var fila = new Array(sheet.getLastColumn()).fill('');
+    if (idxIdCredito > 0) fila[idxIdCredito - 1] = idCredito;
+    if (idxFecha > 0) fila[idxFecha - 1] = fecha;
+    if (idxNombre > 0) fila[idxNombre - 1] = nombreCompleto;
+    if (idxNombreAlumno > 0) fila[idxNombreAlumno - 1] = nombreAlumno;
+    if (idxAbono > 0) fila[idxAbono - 1] = monto;
+    if (idxSaldo > 0) fila[idxSaldo - 1] = monto;
+    if (idxUsuario > 0) fila[idxUsuario - 1] = data.usuario || '';
+    sheet.appendRow(fila);
+
+    return { idCredito: idCredito, fecha: fecha.toISOString() };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function normalizarTexto_(s) {

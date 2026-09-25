@@ -461,6 +461,17 @@ table.tabla-recaudacion tfoot td {
 .modal-acciones { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
 .modal-acciones .btn { flex: 1; }
 
+/* ---------- Tarjeta de formulario (ej: Agregar Crédito) ---------- */
+.tarjeta-formulario {
+  background: #fff; border: 1px solid var(--gris-borde); border-radius: 14px;
+  padding: 20px; max-width: 420px; margin-top: 8px;
+}
+.tarjeta-formulario label { display: block; margin-top: 12px; font-size: 13px; font-weight: 600; color: #555; }
+.tarjeta-formulario input[type=text], .tarjeta-formulario input[type=number] {
+  width: 100%; padding: 10px; margin-top: 4px; border-radius: 8px; border: 1px solid var(--gris-borde); font-size: 16px;
+}
+.tarjeta-formulario .btn { margin-top: 18px; width: 100%; }
+
 /* ---------- Overlay / spinner / toast ---------- */
 .overlay {
   position: fixed; inset: 0; background: rgba(255,255,255,0.85);

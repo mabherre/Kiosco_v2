@@ -69,6 +69,7 @@
     <button class="tab" data-tab="auditoria" data-rol="vendedor">📋 Auditoría</button>
     <button class="tab" data-tab="ventas-dia" data-rol="vendedor">🧾 Ventas del día</button>
     <button class="tab" data-tab="productos" data-rol="admin">📦 Productos</button>
+    <button class="tab" data-tab="agregar-credito" data-rol="admin">➕ Agregar Crédito</button>
     <button class="tab" data-tab="resumen" data-rol="admin">📊 Resumen</button>
     <button class="tab" data-tab="recaudacion" data-rol="admin">💰 Recaudación</button>
   </nav>
@@ -152,6 +153,21 @@
     <button id="btn-nuevo-producto" class="btn btn-primario">+ Nuevo producto</button>
     <div id="lista-productos-admin" class="lista-productos-admin">
       <!-- filas generadas por JS -->
+    </div>
+  </section>
+
+  <!-- ---------- TAB: AGREGAR CRÉDITO (admin) ---------- -->
+  <section id="tab-agregar-credito" class="tab-contenido">
+    <p class="ayuda-tab">Registra un crédito nuevo (transferencia con saldo a favor) en la hoja de créditos.</p>
+    <div class="tarjeta-formulario">
+      <label>Nombre Apoderado</label>
+      <input type="text" id="credito-nombre-apoderado" placeholder="Ej: Juan Pérez">
+      <label>Nombre Alumno(s)</label>
+      <input type="text" id="credito-nombre-alumno" placeholder="Ej: María Pérez">
+      <label>Monto Crédito</label>
+      <input type="number" id="credito-monto" placeholder="Ej: 20000" min="0" step="1">
+      <button id="btn-guardar-credito" class="btn btn-primario btn-grande">Guardar crédito</button>
+      <p id="credito-error" class="error oculto"></p>
     </div>
   </section>
 

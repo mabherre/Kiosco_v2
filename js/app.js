@@ -740,6 +740,31 @@
       .then(ocultarCarga);
   });
 
+  /* ---------- Agregar Crédito (admin) ---------- */
+  $('btn-guardar-credito').addEventListener('click', function () {
+    var nombreApoderado = $('credito-nombre-apoderado').value.trim();
+    var nombreAlumno = $('credito-nombre-alumno').value.trim();
+    var monto = parseFloat($('credito-monto').value);
+
+    if (!nombreApoderado || !nombreAlumno || isNaN(monto) || monto <= 0) {
+      $('credito-error').textContent = 'Completá el Nombre Apoderado, el Nombre Alumno(s) y un Monto Crédito válido (mayor a 0).';
+      $('credito-error').classList.remove('oculto');
+      return;
+    }
+    $('credito-error').classList.add('oculto');
+
+    mostrarCarga('Guardando crédito...');
+    DB.agregarCredito({ nombreCompleto: nombreApoderado, nombreAlumno: nombreAlumno, monto: monto, usuario: estado.usuario })
+      .then(function () {
+        toast('Crédito guardado.');
+        $('credito-nombre-apoderado').value = '';
+        $('credito-nombre-alumno').value = '';
+        $('credito-monto').value = '';
+      })
+      .catch(function (err) { toast('Error al guardar el crédito: ' + err.message, true); })
+      .then(ocultarCarga);
+  });
+
   /* ---------- Selector de tipo de venta (efectivo / transferencia / crédito) ---------- */
   function renderizarSelectorTipoVenta() {
     $('btn-tipo-efectivo').classList.toggle('activo', estado.tipoVenta === 'efectivo');

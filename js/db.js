@@ -189,6 +189,14 @@ var DB = (function () {
       return llamarBackend('eliminarProducto', { id: id, claveAdmin: CONFIG.CLAVE_ADMIN });
     },
 
+    // Sólo Administrador: agrega un crédito nuevo a mano en la hoja CREDITO
+    // (por ejemplo, cuando llega una transferencia que se va a usar de a
+    // poco en varias compras). El id_credito, la Fecha y el Saldo inicial
+    // (igual al Abono) los calcula el servidor.
+    agregarCredito: function (credito) {
+      return llamarBackend('agregarCredito', Object.assign({ claveAdmin: CONFIG.CLAVE_ADMIN }, credito));
+    },
+
     // Credenciales del alumno logueado como Vendedor (ver arriba). Hay que
     // llamarla apenas se loguea (o al restaurar sesión), antes de usar
     // cualquiera de las acciones de vendedor de más abajo.
