@@ -32,7 +32,10 @@
     <select id="select-alumno-vendedor" disabled>
       <option value="">Seleccionar primero un curso</option>
     </select>
-    <input type="password" id="input-apellido-materno" placeholder="Apellido materno" autocomplete="off">
+    <div class="campo-clave">
+      <input type="password" id="input-apellido-materno" placeholder="Apellido materno" autocomplete="off">
+      <button type="button" id="btn-ver-clave-vendedor" class="btn-toggle-clave" title="Mostrar/ocultar">👁️</button>
+    </div>
     <button id="btn-entrar-vendedor" class="btn btn-primario btn-grande">Entrar</button>
     <button id="btn-volver-rol-1" class="btn">Volver</button>
     <p id="login-error-vendedor" class="error oculto"></p>
@@ -42,7 +45,10 @@
   <div class="login-box oculto" id="login-paso-admin">
     <h1>🏪 Kiosco</h1>
     <p>Ingresar la clave de administrador y el nombre.</p>
-    <input type="password" id="input-clave-admin" placeholder="Clave" autocomplete="off">
+    <div class="campo-clave">
+      <input type="password" id="input-clave-admin" placeholder="Clave" autocomplete="off">
+      <button type="button" id="btn-ver-clave-admin" class="btn-toggle-clave" title="Mostrar/ocultar">👁️</button>
+    </div>
     <input type="text" id="input-nombre-admin" placeholder="Nombre" autocomplete="off">
     <button id="btn-entrar-admin" class="btn btn-primario btn-grande">Entrar</button>
     <button id="btn-volver-rol-2" class="btn">Volver</button>
@@ -224,6 +230,27 @@
       <button id="btn-eliminar-producto" class="btn btn-peligro oculto">Eliminar</button>
     </div>
     <p id="modal-producto-error" class="error oculto"></p>
+  </div>
+</div>
+
+<!-- ===================== MODAL CRÉDITO (edición, admin) ===================== -->
+<div id="modal-credito" class="modal oculto">
+  <div class="modal-contenido">
+    <h2>Editar crédito</h2>
+    <input type="hidden" id="credito-edit-fila">
+    <label>Nombre Apoderado</label>
+    <input type="text" id="credito-edit-nombre-apoderado" placeholder="Ej: Juan Pérez">
+    <label>Nombre Alumno(s)</label>
+    <input type="text" id="credito-edit-nombre-alumno" placeholder="Ej: María Pérez">
+    <label>Monto Crédito</label>
+    <input type="number" id="credito-edit-monto" placeholder="Ej: 20000" min="0" step="1">
+    <p class="ayuda-tab">Si ya se usó parte del crédito, cambiar el Monto Crédito no borra lo ya usado: el nuevo saldo se calcula respetando ese consumo.</p>
+    <div class="modal-acciones">
+      <button id="btn-guardar-credito-edit" class="btn btn-primario">Guardar</button>
+      <button id="btn-cancelar-credito-edit" class="btn">Cancelar</button>
+      <button id="btn-eliminar-credito-edit" class="btn btn-peligro">Eliminar</button>
+    </div>
+    <p id="modal-credito-error" class="error oculto"></p>
   </div>
 </div>
 
