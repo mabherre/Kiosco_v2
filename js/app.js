@@ -770,18 +770,36 @@
   });
 
   $('btn-actualizar-creditos-admin').addEventListener('click', cargarCreditosAdmin);
+  $('input-buscar-credito-admin').addEventListener('input', aplicarBusquedaCreditosAdmin_);
 
   // Lista de sólo lectura (sin botón "Usar") para que el Administrador pueda
   // ver los créditos con saldo disponible y cerciorarse de que un registro
-  // nuevo se cargó correctamente.
+  // nuevo se cargó correctamente. Se guarda la última lista completa para
+  // poder filtrarla localmente con el buscador, igual que en la pestaña de
+  // Créditos del Vendedor.
+  var creditosAdminCache_ = [];
+
   function cargarCreditosAdmin() {
     mostrarCarga('Cargando créditos...');
     DB.obtenerCreditosAdmin()
       .then(function (resp) {
-        renderizarCreditosAdmin(resp.creditos || []);
+        creditosAdminCache_ = resp.creditos || [];
+        aplicarBusquedaCreditosAdmin_();
       })
       .catch(function (err) { toast('Error al cargar créditos: ' + err.message, true); })
       .then(ocultarCarga);
+  }
+
+  // Filtra, sobre la lista ya cargada, por lo que se haya escrito en el
+  // buscador: busca coincidencia en nombre, alumno, RUN, documento,
+  // movimiento, ID o quién lo cargó. Vacío = se muestran todos.
+  function aplicarBusquedaCreditosAdmin_() {
+    var texto = $('input-buscar-credito-admin').value.trim().toLowerCase();
+    var lista = !texto ? creditosAdminCache_ : creditosAdminCache_.filter(function (c) {
+      return [c.idCredito, c.fecha, c.documento, c.movimiento, c.run, c.nombreCompleto, c.nombreAlumno, c.abono, c.saldo, c.usuario]
+        .some(function (campo) { return String(campo || '').toLowerCase().indexOf(texto) !== -1; });
+    });
+    renderizarCreditosAdmin(lista);
   }
 
   function renderizarCreditosAdmin(lista) {
