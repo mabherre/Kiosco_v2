@@ -270,6 +270,13 @@
       .then(ocultarCarga);
   }
 
+  // Botón "🔄 Actualizar productos" en Vender: sin esto, si el vendedor deja
+  // la app abierta todo el día, un cambio de precio que haga el
+  // administrador no se ve hasta que cierre sesión y vuelva a entrar (los
+  // productos sólo se cargan una vez, al iniciar sesión). Con este botón no
+  // hace falta ni cerrar sesión ni borrar datos del navegador.
+  $('btn-actualizar-productos').addEventListener('click', cargarProductos);
+
   /* ---------- Vista Venta ---------- */
   function renderizarProductosVenta() {
     var cont = $('grid-productos-venta');
