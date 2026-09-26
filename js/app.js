@@ -1029,40 +1029,70 @@
     });
   }
 
-  /* ---------- Resumen de ventas por vendedor, tipo y producto (admin) ---------- */
+  /* ---------- Resumen consolidado de ventas (admin) ---------- */
   var TEXTO_TIPO_VENTA = { efectivo: '💵 Efectivo', transferencia: '💳 Transferencia', credito: '🏦 Crédito' };
+
+  function renderizarTablaVacia_(contId, mensaje) {
+    $(contId).innerHTML = '<p class="vacio">' + mensaje + '</p>';
+  }
+
+  function renderizarResumenPorVendedor_(lista) {
+    var cont = $('tabla-resumen-vendedor-wrap');
+    if (!lista.length) { renderizarTablaVacia_('tabla-resumen-vendedor-wrap', 'Todavía no hay ventas registradas.'); return; }
+    var totalCantidad = 0, totalMonto = 0;
+    var filas = lista.map(function (r) {
+      totalCantidad += r.cantidad;
+      totalMonto += r.monto;
+      return '<tr>' +
+        '<td>' + escapeHtml(r.usuario) + '</td>' +
+        '<td>' + (TEXTO_TIPO_VENTA[r.tipoVenta] || escapeHtml(r.tipoVenta)) + '</td>' +
+        '<td>' + r.cantidad + '</td>' +
+        '<td>' + formatoMoneda(r.monto) + '</td>' +
+        '</tr>';
+    }).join('');
+    cont.innerHTML =
+      '<table class="tabla-recaudacion">' +
+      '<thead><tr><th>Vendedor</th><th>Tipo de venta</th><th>Cantidad</th><th>Monto</th></tr></thead>' +
+      '<tbody>' + filas + '</tbody>' +
+      '<tfoot><tr>' +
+      '<td colspan="2">Total general</td>' +
+      '<td>' + totalCantidad + '</td>' +
+      '<td>' + formatoMoneda(totalMonto) + '</td>' +
+      '</tr></tfoot>' +
+      '</table>';
+  }
+
+  function renderizarResumenPorProducto_(lista) {
+    var cont = $('tabla-resumen-producto-wrap');
+    if (!lista.length) { renderizarTablaVacia_('tabla-resumen-producto-wrap', 'Todavía no hay ventas registradas.'); return; }
+    var totalCantidad = 0, totalMonto = 0;
+    var filas = lista.map(function (r) {
+      totalCantidad += r.cantidad;
+      totalMonto += r.monto;
+      return '<tr>' +
+        '<td>' + escapeHtml(r.productoNombre) + '</td>' +
+        '<td>' + r.cantidad + '</td>' +
+        '<td>' + formatoMoneda(r.monto) + '</td>' +
+        '</tr>';
+    }).join('');
+    cont.innerHTML =
+      '<table class="tabla-recaudacion">' +
+      '<thead><tr><th>Producto</th><th>Cantidad</th><th>Monto</th></tr></thead>' +
+      '<tbody>' + filas + '</tbody>' +
+      '<tfoot><tr>' +
+      '<td>Total general</td>' +
+      '<td>' + totalCantidad + '</td>' +
+      '<td>' + formatoMoneda(totalMonto) + '</td>' +
+      '</tr></tfoot>' +
+      '</table>';
+  }
 
   function cargarResumenVentas() {
     mostrarCarga('Cargando resumen...');
-    DB.resumenVentasPorVendedorTipoProducto()
-      .then(function (lista) {
-        var cont = $('tabla-resumen-wrap');
-        if (!lista.length) {
-          cont.innerHTML = '<p class="vacio">Todavía no hay ventas registradas.</p>';
-          return;
-        }
-        var totalCantidad = 0, totalMonto = 0;
-        var filas = lista.map(function (r) {
-          totalCantidad += r.cantidad;
-          totalMonto += r.monto;
-          return '<tr>' +
-            '<td>' + escapeHtml(r.usuario) + '</td>' +
-            '<td>' + (TEXTO_TIPO_VENTA[r.tipoVenta] || escapeHtml(r.tipoVenta)) + '</td>' +
-            '<td>' + escapeHtml(r.productoNombre) + '</td>' +
-            '<td>' + r.cantidad + '</td>' +
-            '<td>' + formatoMoneda(r.monto) + '</td>' +
-            '</tr>';
-        }).join('');
-        cont.innerHTML =
-          '<table class="tabla-recaudacion">' +
-          '<thead><tr><th>Vendedor</th><th>Tipo de venta</th><th>Producto</th><th>Cantidad</th><th>Monto</th></tr></thead>' +
-          '<tbody>' + filas + '</tbody>' +
-          '<tfoot><tr>' +
-          '<td colspan="3">Total general</td>' +
-          '<td>' + totalCantidad + '</td>' +
-          '<td>' + formatoMoneda(totalMonto) + '</td>' +
-          '</tr></tfoot>' +
-          '</table>';
+    DB.resumenVentasConsolidado()
+      .then(function (resp) {
+        renderizarResumenPorVendedor_(resp.porVendedorTipo || []);
+        renderizarResumenPorProducto_(resp.porProducto || []);
       })
       .catch(function (err) { toast('Error al cargar el resumen: ' + err.message, true); })
       .then(ocultarCarga);
