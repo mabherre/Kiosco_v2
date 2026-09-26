@@ -189,16 +189,10 @@
 
   <!-- ---------- TAB: RESUMEN (admin) ---------- -->
   <section id="tab-resumen" class="tab-contenido">
+    <p class="ayuda-tab">Ventas agrupadas por vendedor, tipo de venta y producto (todo el historial).</p>
     <button id="btn-actualizar-resumen" class="btn">🔄 Actualizar</button>
-    <div class="resumen-cards">
-      <div class="resumen-card">
-        <div class="resumen-card-valor" id="resumen-cantidad">-</div>
-        <div class="resumen-card-label">Transferencias sin usar</div>
-      </div>
-      <div class="resumen-card">
-        <div class="resumen-card-valor" id="resumen-monto">-</div>
-        <div class="resumen-card-label">Monto total sin usar</div>
-      </div>
+    <div id="tabla-resumen-wrap" class="tabla-recaudacion-wrap">
+      <p class="vacio">Cargando...</p>
     </div>
   </section>
 
@@ -244,7 +238,9 @@
     <input type="text" id="credito-edit-nombre-alumno" placeholder="Ej: María Pérez">
     <label>Monto Crédito</label>
     <input type="number" id="credito-edit-monto" placeholder="Ej: 20000" min="0" step="1">
-    <p class="ayuda-tab">Si ya se usó parte del crédito, cambiar el Monto Crédito no borra lo ya usado: el nuevo saldo se calcula respetando ese consumo.</p>
+    <label>Saldo disponible</label>
+    <input type="number" id="credito-edit-saldo" placeholder="Ej: 20000" min="0" step="1">
+    <p class="ayuda-tab">El Saldo disponible se puede corregir directamente acá (por ejemplo, si quedó mal después de una venta). Si se cambia el Monto Crédito y no se toca el Saldo, éste se recalcula solo respetando lo que ya se haya usado.</p>
     <div class="modal-acciones">
       <button id="btn-guardar-credito-edit" class="btn btn-primario">Guardar</button>
       <button id="btn-cancelar-credito-edit" class="btn">Cancelar</button>
