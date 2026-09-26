@@ -306,6 +306,13 @@ var DB = (function () {
         .then(function (json) { return json.recaudacion || []; });
     },
 
+    // Sólo Administrador: resumen de ventas agrupado por vendedor, tipo de
+    // venta y producto (cantidad y monto de cada combinación).
+    resumenVentasPorVendedorTipoProducto: function () {
+      return llamarBackend('resumenVentasPorVendedorTipoProducto', { claveAdmin: CONFIG.CLAVE_ADMIN })
+        .then(function (json) { return json.resumen || []; });
+    },
+
     // Busca en la copia guardada localmente (para cuando no hay señal).
     buscarTransferenciasEnCache: function (texto) {
       var termino = normalizarTexto(texto);

@@ -261,7 +261,7 @@
     if (boton) boton.classList.add('activa');
     var contenido = $('tab-' + nombreTab);
     if (contenido) contenido.classList.add('activa');
-    if (nombreTab === 'resumen') cargarResumenTransferencias();
+    if (nombreTab === 'resumen') cargarResumenVentas();
     if (nombreTab === 'auditoria') cargarAuditoria();
     if (nombreTab === 'ventas-dia') cargarVentasDelDia();
     if (nombreTab === 'recaudacion') cargarRecaudacion();
@@ -855,6 +855,7 @@
     $('credito-edit-nombre-apoderado').value = credito.nombreCompleto;
     $('credito-edit-nombre-alumno').value = credito.nombreAlumno;
     $('credito-edit-monto').value = credito.abono;
+    $('credito-edit-saldo').value = credito.saldo;
     $('modal-credito').classList.remove('oculto');
   }
 
@@ -867,16 +868,22 @@
     var nombreApoderado = $('credito-edit-nombre-apoderado').value.trim();
     var nombreAlumno = $('credito-edit-nombre-alumno').value.trim();
     var monto = parseFloat($('credito-edit-monto').value);
+    var saldo = parseFloat($('credito-edit-saldo').value);
 
     if (!nombreApoderado || !nombreAlumno || isNaN(monto) || monto <= 0) {
       $('modal-credito-error').textContent = 'Completá el Nombre Apoderado, el Nombre Alumno(s) y un Monto Crédito válido (mayor a 0).';
       $('modal-credito-error').classList.remove('oculto');
       return;
     }
+    if (isNaN(saldo) || saldo < 0 || saldo > monto) {
+      $('modal-credito-error').textContent = 'El Saldo disponible tiene que ser un número entre 0 y el Monto Crédito.';
+      $('modal-credito-error').classList.remove('oculto');
+      return;
+    }
     $('modal-credito-error').classList.add('oculto');
 
     mostrarCarga('Guardando cambios...');
-    DB.editarCredito({ fila: fila, nombreCompleto: nombreApoderado, nombreAlumno: nombreAlumno, monto: monto })
+    DB.editarCredito({ fila: fila, nombreCompleto: nombreApoderado, nombreAlumno: nombreAlumno, monto: monto, saldo: saldo })
       .then(function () {
         toast('Crédito actualizado.');
         $('modal-credito').classList.add('oculto');
@@ -1022,19 +1029,46 @@
     });
   }
 
-  /* ---------- Resumen de transferencias (admin) ---------- */
-  function cargarResumenTransferencias() {
+  /* ---------- Resumen de ventas por vendedor, tipo y producto (admin) ---------- */
+  var TEXTO_TIPO_VENTA = { efectivo: '💵 Efectivo', transferencia: '💳 Transferencia', credito: '🏦 Crédito' };
+
+  function cargarResumenVentas() {
     mostrarCarga('Cargando resumen...');
-    DB.resumenTransferencias()
-      .then(function (resp) {
-        $('resumen-cantidad').textContent = resp.cantidad;
-        $('resumen-monto').textContent = formatoMoneda(resp.montoTotal);
+    DB.resumenVentasPorVendedorTipoProducto()
+      .then(function (lista) {
+        var cont = $('tabla-resumen-wrap');
+        if (!lista.length) {
+          cont.innerHTML = '<p class="vacio">Todavía no hay ventas registradas.</p>';
+          return;
+        }
+        var totalCantidad = 0, totalMonto = 0;
+        var filas = lista.map(function (r) {
+          totalCantidad += r.cantidad;
+          totalMonto += r.monto;
+          return '<tr>' +
+            '<td>' + escapeHtml(r.usuario) + '</td>' +
+            '<td>' + (TEXTO_TIPO_VENTA[r.tipoVenta] || escapeHtml(r.tipoVenta)) + '</td>' +
+            '<td>' + escapeHtml(r.productoNombre) + '</td>' +
+            '<td>' + r.cantidad + '</td>' +
+            '<td>' + formatoMoneda(r.monto) + '</td>' +
+            '</tr>';
+        }).join('');
+        cont.innerHTML =
+          '<table class="tabla-recaudacion">' +
+          '<thead><tr><th>Vendedor</th><th>Tipo de venta</th><th>Producto</th><th>Cantidad</th><th>Monto</th></tr></thead>' +
+          '<tbody>' + filas + '</tbody>' +
+          '<tfoot><tr>' +
+          '<td colspan="3">Total general</td>' +
+          '<td>' + totalCantidad + '</td>' +
+          '<td>' + formatoMoneda(totalMonto) + '</td>' +
+          '</tr></tfoot>' +
+          '</table>';
       })
       .catch(function (err) { toast('Error al cargar el resumen: ' + err.message, true); })
       .then(ocultarCarga);
   }
 
-  $('btn-actualizar-resumen').addEventListener('click', cargarResumenTransferencias);
+  $('btn-actualizar-resumen').addEventListener('click', cargarResumenVentas);
 
   /* ---------- Auditoría del día (vendedor) ---------- */
   function cargarAuditoria() {
