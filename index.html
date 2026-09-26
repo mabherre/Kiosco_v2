@@ -189,9 +189,16 @@
 
   <!-- ---------- TAB: RESUMEN (admin) ---------- -->
   <section id="tab-resumen" class="tab-contenido">
-    <p class="ayuda-tab">Ventas agrupadas por vendedor, tipo de venta y producto (todo el historial).</p>
+    <p class="ayuda-tab">Totales consolidados de ventas (todo el historial).</p>
     <button id="btn-actualizar-resumen" class="btn">🔄 Actualizar</button>
-    <div id="tabla-resumen-wrap" class="tabla-recaudacion-wrap">
+
+    <h3 style="margin-top:18px;">Por vendedor y tipo de venta</h3>
+    <div id="tabla-resumen-vendedor-wrap" class="tabla-recaudacion-wrap">
+      <p class="vacio">Cargando...</p>
+    </div>
+
+    <h3 style="margin-top:24px;">Por producto</h3>
+    <div id="tabla-resumen-producto-wrap" class="tabla-recaudacion-wrap">
       <p class="vacio">Cargando...</p>
     </div>
   </section>
