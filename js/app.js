@@ -607,6 +607,17 @@
         if (resultado.conflictos > 0) {
           toast('Atención: ' + resultado.conflictos + ' venta(s) sincronizada(s) usaban una transferencia que ya había sido usada por otra venta. Revisar con un administrador.', true);
         }
+        if (resultado.conError > 0) {
+          // El servidor rechazó estas ventas por un error real (no de
+          // conexión), así que van a seguir apareciendo como pendientes
+          // hasta que un administrador las revise a mano: sin este aviso, el
+          // vendedor podía pensar que "se quedaron pegadas" sin enterarse de
+          // que hay algo puntual mal en esos datos.
+          toast('Atención: ' + resultado.conError + ' venta(s) pendiente(s) no se pudieron registrar por un error del servidor (no de conexión) y van a seguir apareciendo como pendientes. Revisar con un administrador.', true);
+        }
+        if (resultado.agotado) {
+          toast('La sincronización se está demorando más de lo normal; se va a seguir intentando sola.', true);
+        }
       })
       .catch(function (err) {
         if (!silencioso) toast('No se pudo sincronizar: ' + err.message, true);

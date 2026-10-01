@@ -334,23 +334,31 @@ var DB = (function () {
     hayVentasPendientes: function () { return leerCola().length > 0; },
 
     // Intenta mandar todas las ventas encoladas. Devuelve cuántas se
-    // sincronizaron y cuántas quedaron pendientes (por ejemplo, si se corta
-    // la señal a mitad de camino).
+    // sincronizaron, cuántas quedaron pendientes (por ejemplo, si se corta la
+    // señal a mitad de camino), cuántas el servidor rechazó por un error real
+    // (no de red, por ejemplo datos inválidos) y si se cortó por el límite de
+    // tiempo (ver más abajo).
+    //
+    // Manda varias ventas EN PARALELO (en vez de una por una) para que la
+    // sincronización no se demore de más cuando hay varias pendientes y la
+    // señal es débil (cada pedido puede tardar varios segundos en responder);
+    // esto es seguro porque el servidor ya serializa la escritura con su
+    // propio bloqueo (LockService.getScriptLock() en registrarVenta).
     sincronizarVentasPendientes: function () {
       var cola = leerCola();
-      if (!cola.length) return Promise.resolve({ sincronizadas: 0, pendientes: 0, conflictos: 0 });
+      if (!cola.length) return Promise.resolve({ sincronizadas: 0, pendientes: 0, conflictos: 0, conError: 0, agotado: false });
 
       var sincronizadas = 0;
       var conflictos = 0;
+      var conError = 0;
+      var sinSenal = false; // una vez que se detecta un corte de señal, se deja de mandar más (no tiene sentido seguir intentando)
+      var siguienteIndice = 0;
+      var CONCURRENCIA = 3;
 
-      function procesarSiguiente(i) {
-        if (i >= cola.length) {
-          return Promise.resolve({
-            sincronizadas: sincronizadas,
-            pendientes: leerCola().length,
-            conflictos: conflictos
-          });
-        }
+      function procesarUna() {
+        if (sinSenal) return;
+        var i = siguienteIndice++;
+        if (i >= cola.length) return;
         var venta = cola[i];
         var ventaSinIdLocal = Object.assign({}, venta);
         delete ventaSinIdLocal.idLocal;
@@ -363,21 +371,46 @@ var DB = (function () {
             quitarDeCola(venta.idLocal);
             sincronizadas++;
             if (respuesta.transferenciaYaEstabaUsada) conflictos++;
-            return procesarSiguiente(i + 1);
           })
           .catch(function (err) {
             if (err.esErrorDeRed) {
-              // Seguimos sin señal: se corta acá, lo que falta queda para la próxima.
-              return { sincronizadas: sincronizadas, pendientes: leerCola().length, conflictos: conflictos };
+              sinSenal = true; // seguimos sin señal: se corta acá, lo que falta queda para la próxima
+              return;
             }
-            // Error real (no de red): dejamos esa venta en la cola para
-            // revisarla a mano, pero seguimos con las demás.
+            // Error real (no de red, por ejemplo datos inválidos): se deja esa
+            // venta en la cola para revisarla a mano (se avisa en la app, ver
+            // app.js), pero se sigue intentando con las demás.
             console.warn('No se pudo sincronizar una venta pendiente:', err);
-            return procesarSiguiente(i + 1);
-          });
+            conError++;
+          })
+          .then(procesarUna); // sigue con la próxima de la cola
       }
 
-      return procesarSiguiente(0);
+      var trabajadores = [];
+      for (var w = 0; w < Math.min(CONCURRENCIA, cola.length); w++) trabajadores.push(procesarUna());
+
+      // Límite de seguridad: si una venta se queda "colgada" en el camino
+      // (por ejemplo, el celular se bloquea a mitad de una subida y el
+      // navegador nunca llega a avisar que se cortó la conexión), antes la
+      // sincronización se podía quedar esperando para siempre: el botón
+      // "Sincronizar" quedaba visible sin poder reintentar hasta recargar la
+      // página entera. Con este límite, si pasan más de 90 segundos sin
+      // terminar, se corta acá (lo que se haya alcanzado a sincronizar queda
+      // guardado igual) y se puede reintentar enseguida.
+      var agotado = false;
+      var limite = new Promise(function (resolve) {
+        setTimeout(function () { agotado = true; resolve(); }, 90000);
+      });
+
+      return Promise.race([Promise.all(trabajadores), limite]).then(function () {
+        return {
+          sincronizadas: sincronizadas,
+          pendientes: leerCola().length,
+          conflictos: conflictos,
+          conError: conError,
+          agotado: agotado
+        };
+      });
     }
   };
 })();
