@@ -996,7 +996,14 @@
   // Descuenta localmente (sin esperar un refresco) el monto recién usado del
   // crédito que se acaba de aplicar en una venta, para que la lista mostrada
   // no quede desactualizada. Si el saldo llega a 0, se saca del listado.
+  // También se descuenta en la copia guardada en localStorage (no sólo acá
+  // en memoria): así, si la venta se hizo sin conexión y el vendedor vuelve
+  // a entrar a la pestaña Créditos más tarde (por ejemplo, después de
+  // recargar la página) todavía sin señal, ve el saldo ya descontado en vez
+  // del viejo, y no corre el riesgo de usar de más el mismo crédito antes de
+  // sincronizar.
   function actualizarCreditoDelListado_(fila, montoUsado) {
+    DB.descontarCreditoEnCacheLocal(fila, montoUsado);
     var idx = creditosCache_.findIndex(function (c) { return c.fila === fila; });
     if (idx === -1) return;
     creditosCache_[idx].saldo = (Number(creditosCache_[idx].saldo) || 0) - (Number(montoUsado) || 0);

@@ -121,6 +121,32 @@ var DB = (function () {
     } catch (e) { return { actualizado: null, lista: [] }; }
   }
 
+  // Descuenta el monto usado del saldo de un crédito directamente en la
+  // copia guardada localmente (CACHE_CREDITOS_KEY), sin esperar a sincronizar
+  // con el servidor. Sin esto, una venta con crédito hecha sin conexión sólo
+  // quedaba descontada en la lista que la app tenía en memoria en ese
+  // momento: si el vendedor volvía a entrar a la pestaña Créditos más tarde
+  // (por ejemplo, después de recargar la página, o si la app se cerró y se
+  // volvió a abrir) todavía sin señal, la lista volvía a mostrar el saldo
+  // viejo, sin reflejar lo ya usado, pudiendo llevar a usar de más el mismo
+  // crédito antes de sincronizar. A propósito NO se actualiza la fecha de
+  // "actualizado" del caché (se mantiene la de la última vez que se trajo
+  // la lista real del servidor), para que el aviso de "puede estar
+  // desactualizado" se siga basando en esa fecha real, no en esta corrección
+  // local.
+  function descontarCreditoEnCacheLocal(fila, montoUsado) {
+    var cache = leerCacheCreditos();
+    var idx = cache.lista.findIndex(function (c) { return c.fila === fila; });
+    if (idx === -1) return;
+    cache.lista[idx] = Object.assign({}, cache.lista[idx], {
+      saldo: (Number(cache.lista[idx].saldo) || 0) - (Number(montoUsado) || 0)
+    });
+    if (cache.lista[idx].saldo <= 0) cache.lista.splice(idx, 1);
+    try {
+      localStorage.setItem(CACHE_CREDITOS_KEY, JSON.stringify({ actualizado: cache.actualizado, lista: cache.lista }));
+    } catch (e) {}
+  }
+
   function normalizarTexto(s) {
     return String(s || '').toLowerCase().replace(/[.\-\s]/g, '');
   }
@@ -314,6 +340,12 @@ var DB = (function () {
           return { porVendedorTipo: json.porVendedorTipo || [], porProducto: json.porProducto || [] };
         });
     },
+
+    // Descuenta de inmediato, en la copia local del caché de créditos, el
+    // monto usado en una venta (se llama justo después de registrar o
+    // encolar una venta con crédito). Ver el comentario en
+    // descontarCreditoEnCacheLocal() más arriba para el porqué.
+    descontarCreditoEnCacheLocal: descontarCreditoEnCacheLocal,
 
     // Busca en la copia guardada localmente (para cuando no hay señal).
     buscarTransferenciasEnCache: function (texto) {
