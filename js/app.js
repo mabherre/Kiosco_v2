@@ -267,6 +267,7 @@
     if (nombreTab === 'recaudacion') cargarRecaudacion();
     if (nombreTab === 'creditos') cargarCreditos();
     if (nombreTab === 'agregar-credito') cargarCreditosAdmin();
+    if (nombreTab === 'productos') cargarProductosAdmin();
   }
 
   document.querySelectorAll('.tab').forEach(function (btn) {
@@ -280,7 +281,6 @@
       .then(function (productos) {
         estado.productos = productos || [];
         renderizarProductosVenta();
-        renderizarProductosAdmin();
       })
       .catch(function (err) { toast('Error al cargar productos: ' + err.message, true); })
       .then(ocultarCarga);
@@ -666,26 +666,52 @@
   });
 
   /* ---------- Vista Productos (admin) ---------- */
+  // Lista de TODOS los productos registrados (activos e inactivos), distinta
+  // de estado.productos (sólo activos, que es lo que se vende).
+  var productosAdmin_ = [];
+
+  function cargarProductosAdmin() {
+    mostrarCarga('Cargando productos...');
+    DB.obtenerProductosAdmin()
+      .then(function (lista) {
+        productosAdmin_ = lista;
+        renderizarProductosAdmin();
+      })
+      .catch(function (err) { toast('Error al cargar productos: ' + err.message, true); })
+      .then(ocultarCarga);
+  }
+
   function renderizarProductosAdmin() {
     var cont = $('lista-productos-admin');
-    if (!estado.productos.length) {
+    if (!productosAdmin_.length) {
       cont.innerHTML = '<p>No hay productos cargados todavía.</p>';
       return;
     }
     cont.innerHTML = '';
-    estado.productos.forEach(function (p) {
+    productosAdmin_.forEach(function (p) {
       var div = document.createElement('div');
-      div.className = 'fila-producto-admin';
+      div.className = 'fila-producto-admin' + (p.activo ? '' : ' inactivo');
       div.innerHTML =
         (p.fotoUrl
           ? '<img src="' + p.fotoUrl + '" alt="">'
           : '<div class="sin-foto">📦</div>') +
         '<div class="info">' +
-        '<div class="nombre">' + escapeHtml(p.nombre) + '</div>' +
+        '<div class="nombre">' + escapeHtml(p.nombre) + (p.activo ? '' : ' <span class="etiqueta-inactivo">Inactivo</span>') + '</div>' +
         '<div class="precio">' + formatoMoneda(p.precio) + '</div>' +
         '</div>' +
+        '<button class="btn btn-chico btn-activar">' + (p.activo ? 'Desactivar' : 'Activar') + '</button>' +
         '<button class="btn btn-chico btn-editar">Editar</button>';
       div.querySelector('.btn-editar').addEventListener('click', function () { abrirModalProducto(p); });
+      div.querySelector('.btn-activar').addEventListener('click', function () {
+        mostrarCarga(p.activo ? 'Desactivando...' : 'Activando...');
+        DB.actualizarProducto({ id: p.id, activo: !p.activo })
+          .then(function () {
+            toast(p.activo ? 'Producto desactivado.' : 'Producto activado.');
+            cargarProductosAdmin();
+          })
+          .catch(function (err) { toast('Error: ' + err.message, true); })
+          .then(ocultarCarga);
+      });
       cont.appendChild(div);
     });
   }
@@ -760,7 +786,7 @@
       .then(function () {
         toast('Producto guardado.');
         $('modal-producto').classList.add('oculto');
-        cargarProductos();
+        cargarProductosAdmin();
       })
       .catch(function (err) { toast('Error al guardar: ' + err.message, true); })
       .then(ocultarCarga);
@@ -775,7 +801,7 @@
       .then(function () {
         toast('Producto eliminado.');
         $('modal-producto').classList.add('oculto');
-        cargarProductos();
+        cargarProductosAdmin();
       })
       .catch(function (err) { toast('Error al eliminar: ' + err.message, true); })
       .then(ocultarCarga);

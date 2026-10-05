@@ -201,6 +201,13 @@ var DB = (function () {
         });
     },
 
+    // Sólo Administrador: TODOS los productos registrados (activos e
+    // inactivos), cada uno con su campo "activo".
+    obtenerProductosAdmin: function () {
+      return llamarBackend('getProductosAdmin', { claveAdmin: CONFIG.CLAVE_ADMIN })
+        .then(function (json) { return json.productos || []; });
+    },
+
     // Estas tres acciones son sólo de Administrador: además del token de la
     // app, mandan la clave de administrador para que el backend la valide.
     agregarProducto: function (producto) {
