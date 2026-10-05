@@ -271,6 +271,12 @@ body {
 .fila-producto-admin .info { flex: 1; }
 .fila-producto-admin .nombre { font-weight: 600; }
 .fila-producto-admin .precio { color: var(--verde); }
+.fila-producto-admin.inactivo img, .fila-producto-admin.inactivo .sin-foto,
+.fila-producto-admin.inactivo .info { opacity: 0.45; }
+.etiqueta-inactivo {
+  font-size: 11px; font-weight: 600; color: #fff; background: #999;
+  border-radius: 6px; padding: 2px 6px; margin-left: 6px; vertical-align: middle;
+}
 
 /* ---------- Transferencia: banner en Vender ---------- */
 .banner-transferencia {
