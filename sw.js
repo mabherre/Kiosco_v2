@@ -9,7 +9,7 @@
  * nombre distinto (v3, v4, ...) para forzar a los dispositivos ya
  * instalados a tomar la actualización.
  */
-var CACHE = 'kiosco-v2';
+var CACHE = 'kiosco-v3';
 var ARCHIVOS = [
   './index.html',
   './css/style.css',
@@ -42,6 +42,10 @@ self.addEventListener('activate', function (event) {
 });
 
 self.addEventListener('fetch', function (event) {
+  // Los pedidos al backend (Apps Script, otro dominio) y los que no son GET
+  // no pasan por acá: así no se les agrega demora ni se intenta guardarlos
+  // en el caché de archivos estáticos.
+  if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(
     fetch(event.request)
       .then(function (respuestaRed) {
