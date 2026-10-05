@@ -29,7 +29,35 @@ var DB = (function () {
     return CONFIG.URL_APPS_SCRIPT && CONFIG.URL_APPS_SCRIPT.indexOf('https://') === 0;
   }
 
+  // Acciones de sólo lectura: se pueden repetir sin riesgo, así que si fallan
+  // por timeout/conexión se reintentan automáticamente (el servidor de Apps
+  // Script a veces tarda mucho en la primera respuesta tras un rato sin uso,
+  // y el segundo intento ya lo encuentra "despierto"). Las acciones que
+  // escriben (registrarVenta, agregar/editar, etc.) NO se reintentan acá.
+  var ACCIONES_LECTURA = [
+    'getProductos', 'getProductosAdmin', 'obtenerCreditos', 'obtenerCreditosAdmin',
+    'obtenerAlumnos', 'auditoriaDelDia', 'ventasDelDia', 'proximoNumeroBoleta',
+    'recaudacionPorVendedorYDia', 'resumenVentasConsolidado', 'resumenTransferencias',
+    'obtenerTransferenciasSinUsar', 'buscarTransferencias'
+  ];
+
   function llamarBackend(accion, payload) {
+    var intento = llamarBackendUnaVez_(accion, payload);
+    if (ACCIONES_LECTURA.indexOf(accion) === -1) return intento;
+    return intento.catch(function (err) {
+      if (!err.esErrorDeRed) throw err;
+      return llamarBackendUnaVez_(accion, payload); // un reintento
+    });
+  }
+
+  // "Despierta" el servidor de Apps Script (sin esperar respuesta útil) para
+  // que las llamadas siguientes no tengan que pagar el arranque en frío.
+  function calentarServidor() {
+    if (!urlConfigurada()) return;
+    try { fetch(CONFIG.URL_APPS_SCRIPT + '?accion=ping', { cache: 'no-store' }).catch(function () {}); } catch (e) {}
+  }
+
+  function llamarBackendUnaVez_(accion, payload) {
     if (!urlConfigurada()) {
       return Promise.reject(new Error('Falta configurar la URL de Apps Script en js/config.js'));
     }
@@ -203,10 +231,24 @@ var DB = (function () {
 
     // Sólo Administrador: TODOS los productos registrados (activos e
     // inactivos), cada uno con su campo "activo".
+    // Si no hay conexión, devuelve la última lista guardada (con
+    // "desactualizado: true") en vez de fallar.
     obtenerProductosAdmin: function () {
       return llamarBackend('getProductosAdmin', { claveAdmin: CONFIG.CLAVE_ADMIN })
-        .then(function (json) { return json.productos || []; });
+        .then(function (json) {
+          try { localStorage.setItem('kiosco_productos_admin_cache_v1', JSON.stringify(json.productos || [])); } catch (e) {}
+          return { productos: json.productos || [], desactualizado: false };
+        })
+        .catch(function (err) {
+          if (!err.esErrorDeRed) throw err;
+          var lista = [];
+          try { lista = JSON.parse(localStorage.getItem('kiosco_productos_admin_cache_v1') || '[]'); } catch (e) {}
+          if (!lista.length) throw err;
+          return { productos: lista, desactualizado: true };
+        });
     },
+
+    calentarServidor: calentarServidor,
 
     // Estas tres acciones son sólo de Administrador: además del token de la
     // app, mandan la clave de administrador para que el backend la valide.

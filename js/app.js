@@ -673,9 +673,10 @@
   function cargarProductosAdmin() {
     mostrarCarga('Cargando productos...');
     DB.obtenerProductosAdmin()
-      .then(function (lista) {
-        productosAdmin_ = lista;
+      .then(function (resp) {
+        productosAdmin_ = resp.productos;
         renderizarProductosAdmin();
+        if (resp.desactualizado) toast('Sin conexión: mostrando la última lista guardada de productos.');
       })
       .catch(function (err) { toast('Error al cargar productos: ' + err.message, true); })
       .then(ocultarCarga);
@@ -1299,6 +1300,13 @@
   if (!DB.urlConfigurada()) {
     toast('Falta configurar la URL de Apps Script en js/config.js', true);
   }
+  // Mantiene "despierto" el servidor de Apps Script: tras un rato sin uso
+  // tarda mucho en la primera respuesta (arranque en frío), y eso producía
+  // seguido el error "La conexión tardó demasiado". Un ping al abrir la app
+  // y otro cada 4 minutos mientras la pantalla está visible lo evita.
+  DB.calentarServidor();
+  setInterval(function () { if (!document.hidden) DB.calentarServidor(); }, 4 * 60 * 1000);
+
   iniciarSesion();
 
   // Registrar service worker para uso offline básico (si el archivo se sirve por http/https).
